@@ -3,7 +3,7 @@ from telebot import types
 
 API_TOKEN = '6730091039:AAERw4eW0Gg6IQBvXsR0u7vg1c4I8fmsMWM'
 CHANNEL_USERNAME = '@magistr_guliston'
-ADMIN_ID = 6855997739  # Admin ID
+ADMIN_ID = 685599739  # Admin ID
 
 bot = telebot.TeleBot(API_TOKEN)
 
