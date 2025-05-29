@@ -3,4 +3,5 @@ flask_sqlalchemy
 pandas
 openpyxl
 nest_asyncio
+urllib3
 python-telegram-bot==13.15
