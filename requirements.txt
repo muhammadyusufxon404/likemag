@@ -2,6 +2,7 @@ flask
 flask_sqlalchemy
 pandas
 openpyxl
+pytz
 nest_asyncio
 urllib3
 six
