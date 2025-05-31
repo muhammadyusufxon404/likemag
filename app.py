@@ -252,9 +252,9 @@ def index():
         cur = con.cursor()
         cur.execute('''
             INSERT INTO tolovlar
-            (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt)
+            (id, ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt))
+        ''', (id, ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt))
         con.commit()
         con.close()
 
@@ -264,7 +264,7 @@ def index():
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
     cur.execute('''
-        SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt
+        SELECT id, ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt
         FROM tolovlar
         WHERE date(vaqt) = ?
         ORDER BY vaqt DESC
