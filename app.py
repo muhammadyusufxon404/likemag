@@ -236,7 +236,6 @@ init_db()
 def index():
     if request.method == 'POST':
         # HTML formadagi name atributlariga moslab olingan ma'lumotlar
-        id = request.form['id']
         ismi = request.form['ismi']
         tolov = int(request.form['tolov'])
         kurs = request.form['kurs']
@@ -253,9 +252,9 @@ def index():
         cur = con.cursor()
         cur.execute('''
             INSERT INTO tolovlar
-            (id, ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt)
+            (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (id, ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt))
+        ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt))
         con.commit()
         con.close()
 
@@ -307,7 +306,7 @@ async def handle_callback(update: Update, context: CallbackContext):
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
         cur.execute("""
-            SELECT id, ismi, tolov, kurs, oy, admin, oqituvchi, vaqt 
+            SELECT ismi, tolov, kurs, oy, admin, oqituvchi, vaqt 
             FROM tolovlar 
             WHERE DATE(vaqt) = ?
         """, (today,))
