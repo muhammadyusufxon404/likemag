@@ -236,6 +236,7 @@ init_db()
 def index():
     if request.method == 'POST':
         # HTML formadagi name atributlariga moslab olingan ma'lumotlar
+        id = request.form['id']
         ismi = request.form['ismi']
         tolov = int(request.form['tolov'])
         kurs = request.form['kurs']
