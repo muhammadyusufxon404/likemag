@@ -306,7 +306,7 @@ async def handle_callback(update: Update, context: CallbackContext):
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
         cur.execute("""
-            SELECT ismi, tolov, kurs, oy, admin, oqituvchi, vaqt 
+            SELECT id, ismi, tolov, kurs, oy, admin, oqituvchi, vaqt 
             FROM tolovlar 
             WHERE DATE(vaqt) = ?
         """, (today,))
