@@ -252,7 +252,7 @@ def index():
         cur = con.cursor()
         cur.execute('''
             INSERT INTO tolovlar
-            (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt)
+            (id, ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt))
         con.commit()
