@@ -561,7 +561,7 @@ async def run_bot():
     app_bot.add_handler(CallbackQueryHandler(handle_callback))
 
     # Har kuni soat 23:59 da hisobot yuborish (O'zbekiston vaqti bilan)
-    app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=11, minute=15, tzinfo=pytz.timezone('Asia/Tashkent')))
+    app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
 
     print("✅ Bot ishga tushdi.")
     await app_bot.run_polling()
