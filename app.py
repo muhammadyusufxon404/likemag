@@ -33,7 +33,8 @@
 #             izoh TEXT,
 #             admin TEXT NOT NULL,
 #             oqituvchi TEXT NOT NULL,
-#             vaqt TEXT NOT NULL
+#             vaqt TEXT NOT NULL,
+#             tolov_turi TEXT
 #         )
 #         ''')
 #         con.commit()
@@ -44,7 +45,6 @@
 # @app.route('/', methods=['GET', 'POST'])
 # def index():
 #     if request.method == 'POST':
-#         # HTML formadagi name atributlariga moslab olingan ma'lumotlar
 #         ismi = request.form['ismi']
 #         tolov = int(request.form['tolov'])
 #         kurs = request.form['kurs']
@@ -52,8 +52,8 @@
 #         izoh = request.form.get('izoh', '')
 #         admin = request.form['admin']
 #         oqituvchi = request.form['oqituvchi']
+#         tolov_turi = request.form['tolov_turi']
 
-#         # O'zbekiston vaqtini olish
 #         uzbek_tz = pytz.timezone('Asia/Tashkent')
 #         vaqt = datetime.now(uzbek_tz).strftime('%Y-%m-%d %H:%M:%S')
 
@@ -61,9 +61,9 @@
 #         cur = con.cursor()
 #         cur.execute('''
 #             INSERT INTO tolovlar
-#             (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt)
-#             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-#         ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt))
+#             (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi)
+#             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+#         ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi))
 #         con.commit()
 #         con.close()
 
@@ -73,7 +73,7 @@
 #     con = sqlite3.connect(DB_PATH)
 #     cur = con.cursor()
 #     cur.execute('''
-#         SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt
+#         SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
 #         FROM tolovlar
 #         WHERE date(vaqt) = ?
 #         ORDER BY vaqt DESC
@@ -84,10 +84,8 @@
 #     return render_template('index.html', tolovlar=tolovlar)
 
 # # --- Telegram bot sozlamalari ---
-# BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'  # Bot tokeningizni shu yerga yozing
-
-# # Adminlar ro'yxati (chat_id lar)
-# ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027]  # Admin chat_id larini kiriting
+# BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'  # O'zingizning bot tokeningizni bu yerga yozing
+# ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027]
 
 # async def start(update: Update, context: CallbackContext):
 #     user_id = update.effective_chat.id
@@ -115,7 +113,7 @@
 #         con = sqlite3.connect(DB_PATH)
 #         cur = con.cursor()
 #         cur.execute("""
-#             SELECT ismi, tolov, kurs, oy, admin, oqituvchi, vaqt 
+#             SELECT ismi, tolov, kurs, oy, admin, oqituvchi, vaqt, tolov_turi
 #             FROM tolovlar 
 #             WHERE DATE(vaqt) = ?
 #         """, (today,))
@@ -133,16 +131,16 @@
 #                 f"👤 {row[0]}\n"
 #                 f"💵 {row[1]} so‘m\n"
 #                 f"📚 {row[2]} ({row[3]} oyi)\n"
+#                 f"💳 To‘lov turi: {row[7]}\n"
 #                 f"🧾 Admin: {row[4]}\n"
-#                 f"👨‍🏫 Oqituvchi: {row[5]}\n"
+#                 f"👨‍🏫 O‘qituvchi: {row[5]}\n"
 #                 f"🕒 {row[6]}\n\n"
 #             )
 #         message += f"🔢 *Jami:* {total_sum} so‘m"
 
 #         await query.edit_message_text(message, parse_mode="Markdown")
 
-#         # Excel hisobot yaratish
-#         df = pd.DataFrame(rows, columns=["Ismi", "To'lov", "Kurs", "Oy", "Admin", "Oqituvchi", "Vaqt"])
+#         df = pd.DataFrame(rows, columns=["Ismi", "To'lov", "Kurs", "Oy", "Admin", "O‘qituvchi", "Vaqt", "To‘lov turi"])
 #         os.makedirs("reports", exist_ok=True)
 #         file_path = f"reports/hisobot_{today}.xlsx"
 #         df.to_excel(file_path, index=False)
@@ -176,7 +174,6 @@
 #     app_bot.add_handler(CommandHandler("start", start))
 #     app_bot.add_handler(CallbackQueryHandler(handle_callback))
 
-#     # Har kuni soat 23:59 da hisobot yuborish (O'zbekiston vaqti bilan)
 #     app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
 
 #     print("✅ Bot ishga tushdi.")
@@ -186,10 +183,8 @@
 #     import threading
 #     nest_asyncio.apply()
 
-#     # Flask ilovasini alohida ipda ishga tushiramiz
 #     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False)).start()
 
-#     # Telegram botni asyncio event loopda ishga tushuramiz
 #     asyncio.run(run_bot())
 
 import os
@@ -199,6 +194,7 @@ import pandas as pd
 import pytz
 import asyncio
 import nest_asyncio
+import requests
 
 from flask import Flask, render_template, request, redirect, url_for
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -236,6 +232,9 @@ def init_db():
 
 init_db()
 
+BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
+ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027]
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -261,6 +260,32 @@ def index():
         con.commit()
         con.close()
 
+        # Telegramga xabar yuborish
+        message = (
+            f"💳 *Yangi to‘lov kiritildi!*\n\n"
+            f"👤 Ismi: {ismi}\n"
+            f"💰 To‘lov: {tolov} so‘m\n"
+            f"📚 Kurs: {kurs} ({oy} oyi)\n"
+            f"💳 To‘lov turi: {tolov_turi}\n"
+            f"👨‍🏫 O‘qituvchi: {oqituvchi}\n"
+            f"🧾 Admin: {admin}\n"
+            f"💬 Izoh: {izoh or 'Yo‘q'}\n"
+            f"🕒 Sana: {vaqt}"
+        )
+
+        for admin_id in ADMIN_CHAT_IDS:
+            try:
+                requests.get(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    params={
+                        "chat_id": admin_id,
+                        "text": message,
+                        "parse_mode": "Markdown"
+                    }
+                )
+            except Exception as e:
+                print(f"Telegramga xabar yuborishda xatolik: {e}")
+
         return redirect(url_for('index'))
 
     today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
@@ -277,10 +302,7 @@ def index():
 
     return render_template('index.html', tolovlar=tolovlar)
 
-# --- Telegram bot sozlamalari ---
-BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'  # O'zingizning bot tokeningizni bu yerga yozing
-ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027]
-
+# --- Telegram bot funksiyalari ---
 async def start(update: Update, context: CallbackContext):
     user_id = update.effective_chat.id
     if user_id not in ADMIN_CHAT_IDS:
