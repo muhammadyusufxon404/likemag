@@ -5,6 +5,7 @@
 # import pytz
 # import asyncio
 # import nest_asyncio
+# import requests
 
 # from flask import Flask, render_template, request, redirect, url_for
 # from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -42,6 +43,9 @@
 
 # init_db()
 
+# BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
+# ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027]
+
 # @app.route('/', methods=['GET', 'POST'])
 # def index():
 #     if request.method == 'POST':
@@ -67,6 +71,32 @@
 #         con.commit()
 #         con.close()
 
+#         # Telegramga xabar yuborish
+#         message = (
+#             f"💳 *Yangi to‘lov kiritildi!*\n\n"
+#             f"👤 Ismi: {ismi}\n"
+#             f"💰 To‘lov: {tolov} so‘m\n"
+#             f"📚 Kurs: {kurs} ({oy} oyi)\n"
+#             f"💳 To‘lov turi: {tolov_turi}\n"
+#             f"👨‍🏫 O‘qituvchi: {oqituvchi}\n"
+#             f"🧾 Admin: {admin}\n"
+#             f"💬 Izoh: {izoh or 'Yo‘q'}\n"
+#             f"🕒 Sana: {vaqt}"
+#         )
+
+#         for admin_id in ADMIN_CHAT_IDS:
+#             try:
+#                 requests.get(
+#                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+#                     params={
+#                         "chat_id": admin_id,
+#                         "text": message,
+#                         "parse_mode": "Markdown"
+#                     }
+#                 )
+#             except Exception as e:
+#                 print(f"Telegramga xabar yuborishda xatolik: {e}")
+
 #         return redirect(url_for('index'))
 
 #     today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
@@ -83,10 +113,7 @@
 
 #     return render_template('index.html', tolovlar=tolovlar)
 
-# # --- Telegram bot sozlamalari ---
-# BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'  # O'zingizning bot tokeningizni bu yerga yozing
-# ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027]
-
+# # --- Telegram bot funksiyalari ---
 # async def start(update: Update, context: CallbackContext):
 #     user_id = update.effective_chat.id
 #     if user_id not in ADMIN_CHAT_IDS:
@@ -240,6 +267,12 @@ def index():
     if request.method == 'POST':
         ismi = request.form['ismi']
         tolov = int(request.form['tolov'])
+
+        # === 🔧 YANGI QO‘SHILGAN QISM ===
+        if tolov < 1000:
+            tolov *= 1000  # Masalan: 400 -> 400000
+        # ===============================
+
         kurs = request.form['kurs']
         oy = request.form['oy']
         izoh = request.form.get('izoh', '')
