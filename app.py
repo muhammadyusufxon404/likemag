@@ -83,7 +83,7 @@
 #             f"💬 Izoh: {izoh or 'Yo‘q'}\n"
 #             f"🕒 Sana: {vaqt}"
 #         )
-
+#  kod by yusupov
 #         for admin_id in ADMIN_CHAT_IDS:
 #             try:
 #                 requests.get(
