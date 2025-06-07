@@ -217,7 +217,6 @@
 #     nest_asyncio.apply()
 
 #     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False)).start()
-
 #     asyncio.run(run_bot())
 
 import os
