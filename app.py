@@ -266,9 +266,7 @@ def init_db():
         con.commit()
         con.close()
 
-
 init_db()
-
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -277,7 +275,6 @@ def index():
         tolov = int(request.form['tolov'])
         if tolov < 1000:
             tolov *= 1000
-
         kurs = request.form['kurs']
         oy = request.form['oy']
         izoh = request.form.get('izoh', '')
@@ -340,6 +337,7 @@ def index():
     return render_template('index.html', tolovlar=tolovlar)
 
 
+# --- Telegram bot funksiyalari ---
 async def start(update: Update, context: CallbackContext):
     user_id = update.effective_chat.id
     if user_id not in ADMIN_CHAT_IDS:
@@ -365,42 +363,48 @@ async def handle_callback(update: Update, context: CallbackContext):
         today = datetime.now(uzbek_tz).date().isoformat()
 
         con = sqlite3.connect(DB_PATH)
-        df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", con, params=(today,))
+        cur = con.cursor()
+        cur.execute("""
+            SELECT ismi, tolov, kurs, oy, admin, oqituvchi, vaqt, tolov_turi
+            FROM tolovlar 
+            WHERE DATE(vaqt) = ?
+        """, (today,))
+        rows = cur.fetchall()
         con.close()
 
-        if df.empty:
+        if not rows:
             await query.edit_message_text("Bugun uchun to‘lovlar yo‘q.")
             return
 
+        total_sum = sum(row[1] for row in rows)
         message = f"\U0001F4C5 *{today}* sanasidagi to‘lovlar:\n\n"
-        total_sum = 0
-
-        for idx, row in df.iterrows():
+        for row in rows:
             message += (
-                f"\U0001F464 {row['ismi']}\n"
-                f"\U0001F4B5 {row['tolov']} so‘m\n"
-                f"\U0001F4DA {row['kurs']} ({row['oy']})\n"
-                f"\U0001F4B3 {row['tolov_turi']}\n"
-                f"\U0001F9FE {row['admin']}\n"
-                f"\U0001F468‍\U0001F3EB {row['oqituvchi']}\n"
-                f"\U0001F552 {row['vaqt']}\n\n"
+                f"\U0001F464 {row[0]}\n"
+                f"\U0001F4B5 {row[1]} so‘m\n"
+                f"\U0001F4DA {row[2]} ({row[3]} oyi)\n"
+                f"\U0001F4B3 To‘lov turi: {row[7]}\n"
+                f"\U0001F9FE Admin: {row[4]}\n"
+                f"\U0001F468‍\U0001F3EB O‘qituvchi: {row[5]}\n"
+                f"\U0001F552 {row[6]}\n\n"
             )
-            total_sum += row['tolov']
-
         message += f"\U0001F522 *Jami:* {total_sum} so‘m"
+
         await query.edit_message_text(message, parse_mode="Markdown")
 
-        # Hisobotni har oy uchun alohida Excelga saqlash
+        df = pd.DataFrame(rows, columns=["Ismi", "To'lov", "Kurs", "Oy", "Admin", "O‘qituvchi", "Vaqt", "To‘lov turi"])
         os.makedirs("reports", exist_ok=True)
-        oy_nomi = df.iloc[0]['oy'].lower().replace(' ', '_')
-        fayl_nomi = f"reports/{oy_nomi}_hisobot_{today}.xlsx"
-        df.to_excel(fayl_nomi, index=False)
-        await context.bot.send_document(chat_id=user_id, document=open(fayl_nomi, 'rb'))
+        for oy in df['Oy'].unique():
+            oy_df = df[df['Oy'] == oy]
+            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
+            oy_df.to_excel(file_path, index=False)
+            await context.bot.send_document(chat_id=user_id, document=open(file_path, 'rb'))
 
 
 async def send_daily_report(context: CallbackContext):
     uzbek_tz = pytz.timezone('Asia/Tashkent')
-    today = datetime.now(uzbek_tz).date().isoformat()
+    today_dt = datetime.now(uzbek_tz)
+    today = today_dt.date().isoformat()
 
     con = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", con, params=(today,))
@@ -409,33 +413,28 @@ async def send_daily_report(context: CallbackContext):
     if df.empty:
         for admin_id in ADMIN_CHAT_IDS:
             await context.bot.send_message(chat_id=admin_id, text="Bugun hech qanday to‘lov bo‘lmadi.")
-        return
-
-    os.makedirs("reports", exist_ok=True)
-
-    for oy, oy_df in df.groupby('oy'):
-        oy_nomi = oy.lower().replace(' ', '_')
-        fayl_nomi = f"reports/{oy_nomi}_hisobot_{today}.xlsx"
-        oy_df.to_excel(fayl_nomi, index=False)
-        caption = f"\U0001F4C4 {oy} oyi uchun {today} sanasidagi hisobot"
-
-        for admin_id in ADMIN_CHAT_IDS:
-            await context.bot.send_document(chat_id=admin_id, document=open(fayl_nomi, 'rb'), caption=caption)
+    else:
+        os.makedirs("reports", exist_ok=True)
+        for oy in df['oy'].unique():
+            oy_df = df[df['oy'] == oy]
+            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
+            oy_df.to_excel(file_path, index=False)
+            caption = f"\U0001F4C4 {today_dt.strftime('%d.%m.%Y')} - {oy} oyi uchun hisobot"
+            for admin_id in ADMIN_CHAT_IDS:
+                await context.bot.send_document(chat_id=admin_id, document=open(file_path, 'rb'), caption=caption)
 
 
 async def run_bot():
     app_bot = Application.builder().token(BOT_TOKEN).build()
-
     app_bot.add_handler(CommandHandler("start", start))
     app_bot.add_handler(CallbackQueryHandler(handle_callback))
     app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
-
-    print("\u2705 Bot ishga tushdi.")
+    print("✅ Bot ishga tushdi.")
     await app_bot.run_polling()
 
 
 if __name__ == '__main__':
     import threading
     nest_asyncio.apply()
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000)).start()
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False)).start()
     asyncio.run(run_bot())
