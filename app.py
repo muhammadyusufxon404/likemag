@@ -583,9 +583,10 @@ async def handle_callback(update: Update, context: CallbackContext):
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
         cur.execute("""
-            SELECT tolov
+            SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
             FROM tolovlar
             WHERE DATE(vaqt) = ?
+            ORDER BY vaqt DESC
         """, (today,))
         rows = cur.fetchall()
         con.close()
@@ -594,10 +595,25 @@ async def handle_callback(update: Update, context: CallbackContext):
             await query.edit_message_text("Bugun uchun to‘lovlar yo‘q.")
             return
 
-        total_sum = sum(row[0] for row in rows)
-        message = f"\U0001F4C5 *{today}* sanasidagi jami to‘lov: *{total_sum}* so‘m"
+        total_sum = sum(row[1] for row in rows)  # tolov summasi
 
+        # Jami summani yuborish
+        message = f"\U0001F4C5 *{today}* sanasidagi jami to‘lov: *{total_sum}* so‘m"
         await query.edit_message_text(message, parse_mode="Markdown")
+
+        # Excel fayllarni yaratish va yuborish
+        os.makedirs("reports", exist_ok=True)
+        df = pd.DataFrame(rows, columns=['ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi'])
+
+        for oy in df['oy'].unique():
+            oy_df = df[df['oy'] == oy]
+            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
+            oy_df.to_excel(file_path, index=False)
+
+            caption = f"\U0001F4C4 {today} - {oy} oyi uchun hisobot"
+            for admin_id in ADMIN_CHAT_IDS:
+                with open(file_path, 'rb') as f:
+                    await context.bot.send_document(chat_id=admin_id, document=f, caption=caption)
 
 
 async def send_daily_report(context: CallbackContext):
