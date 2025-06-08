@@ -1,4 +1,4 @@
-<!-- <!DOCTYPE html>
+<!-- <!-- <!DOCTYPE html>
 <html lang="uz">
 <head>
   <meta charset="UTF-8" />
@@ -275,7 +275,7 @@
     </table>
   </div>
 
-  <!-- Modal (Chek chiqarish oynasi) -->
+  Modal (Chek chiqarish oynasi) 
   <div id="checkModal" class="modal">
     <div class="modal-content" id="checkContent">
       <span class="close" onclick="closeCheckModal()">&times;</span>
@@ -328,6 +328,7 @@ Sana & Soat: ${sana}
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
     /* Oddiy modal style */
+     /* Oddiy modal style */
     .modal {
       display: none;
       position: fixed;
@@ -343,7 +344,6 @@ Sana & Soat: ${sana}
       border-radius: 10px;
       max-width: 400px;
       box-shadow: 0 0 15px rgba(0,0,0,0.3);
-      font-family: monospace;
       font-size: 14px;
       line-height: 1.5;
     }
@@ -372,7 +372,7 @@ Sana & Soat: ${sana}
       background-color: #002752;
     }
 
-    /* Print uchun style */
+    /* Print uchun faqat modal chiqsin, orqasi va boshqa elementlar ko'rinmasin */
     @media print {
       body * {
         visibility: hidden;
@@ -384,27 +384,11 @@ Sana & Soat: ${sana}
         position: absolute;
         left: 0;
         top: 0;
-        width: 280px; /* XP-58 printer uchun kenglik */
-        height: auto;
-        margin: 0;
-        padding: 10px 15px;
-        background: white !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-      }
-      #checkModal .modal-content {
+        width: 400px;  /* modalning printda kengligi */
         margin: 0;
         padding: 0;
-        box-shadow: none !important;
         background: white !important;
-      }
-      /* Orqa fonni (overlay) chop etilmasligi uchun */
-      .modal::before {
-        display: none !important;
-      }
-      /* Chop etishda close tugmasi va print tugmasini yashirish */
-      .close, .print-btn {
-        display: none !important;
+        box-shadow: none !important;
       }
     }
   </style>
