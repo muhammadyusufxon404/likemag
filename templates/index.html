@@ -98,51 +98,151 @@
   </div>
 </body>
 </html>
+
  -->
 
 <!DOCTYPE html>
 <html lang="uz">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Chek chiqarish - Popup</title>
-<link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Magistr To‘lov CRM</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    /* Chek chiqarish tugmasi */
+    .print-btn {
+      cursor: pointer;
+      background: #004080;
+      border: none;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-weight: bold;
+      transition: background-color 0.3s ease;
+    }
+    .print-btn:hover {
+      background-color: #00264d;
+    }
+  </style>
 </head>
 <body>
+  <div class="container">
+    <h1>Magistr To‘lov CRM</h1>
 
-<h1>O‘quvchilar ro‘yxati</h1>
+    <form method="POST" action="{{ url_for('index') }}">
+      <!-- Form elementlar (o'zgartirmadim) -->
+      <label for="ismi">O‘quvchi ismi va familiyasi</label>
+      <input type="text" id="ismi" name="ismi" required />
 
-<table>
-  <thead>
-    <tr>
-      <th>ID</th>
-      <th>Ism</th>
-      <th>Familiya</th>
-      <th>Chek chiqarish</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>1</td>
-      <td>Ali</td>
-      <td>Valiyev</td>
-      <td><button class="print-btn" onclick="openReceiptPopup(1, 'Ali', 'Valiyev')" title="Chek chiqarish">🖨️</button></td>
-    </tr>
-    <tr>
-      <td>2</td>
-      <td>Gulbahor</td>
-      <td>Rasulova</td>
-      <td><button class="print-btn" onclick="openReceiptPopup(2, 'Gulbahor', 'Rasulova')" title="Chek chiqarish">🖨️</button></td>
-    </tr>
-  </tbody>
-</table>
+      <label for="tolov">To‘lov summasi (UZS)</label>
+      <input type="number" id="tolov" name="tolov" min="0" required />
+
+      <label for="kurs">Kurs nomi</label>
+      <input type="text" id="kurs" name="kurs" required />
+
+      <label for="oy">To‘lov oyi</label>
+      <select id="oy" name="oy" required>
+        <option value="" disabled selected>Oyni tanlang</option>
+        <option>Yanvar</option>
+        <option>Fevral</option>
+        <option>Mart</option>
+        <option>Aprel</option>
+        <option>May</option>
+        <option>Iyun</option>
+        <option>Iyul</option>
+        <option>Avgust</option>
+        <option>Sentabr</option>
+        <option>Oktabr</option>
+        <option>Noyabr</option>
+        <option>Dekabr</option>
+      </select>
+
+      <label for="tolov_turi">To‘lov turi</label>
+      <select id="tolov_turi" name="tolov_turi" required>
+        <option value="" disabled selected>To‘lov turini tanlang</option>
+        <option>Naqd</option>
+        <option>Click</option>
+      </select>
+
+      <label for="izoh">Izoh <span class="optional">(ixtiyoriy)</span></label>
+      <textarea id="izoh" name="izoh"></textarea>
+
+      <label for="admin">Admin (to‘lovni qabul qilgan)</label>
+      <input type="text" id="admin" name="admin" required />
+
+      <label for="oqituvchi">O‘qituvchi (tayinlangan)</label>
+      <input type="text" id="oqituvchi" name="oqituvchi" required />
+
+      <button type="submit">To‘lovni qo‘shish</button>
+    </form>
+
+    <h2>Bugungi to‘lovlar ({{ tolovlar|length }})</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>O‘quvchi</th>
+          <th>Summa</th>
+          <th>Kurs</th>
+          <th>Oyi</th>
+          <th>To‘lov turi</th>
+          <th>Izoh</th>
+          <th>Admin</th>
+          <th>O‘qituvchi</th>
+          <th>Sana & Soat</th>
+          <th>Chek</th> <!-- Yangi ustun -->
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in tolovlar %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ p[0] }}</td>
+          <td>{{ p[1] }} so‘m</td>
+          <td>{{ p[2] }}</td>
+          <td>{{ p[3] }}</td>
+          <td>{{ p[8] or '-' }}</td>
+          <td>{{ p[4] or '-' }}</td>
+          <td>{{ p[5] }}</td>
+          <td>{{ p[6] }}</td>
+          <td>{{ p[7] }}</td>
+          <td>
+            <button class="print-btn"
+              onclick="openReceiptPopup(
+                {{ loop.index }},
+                '{{ p[0]|e('js') }}',
+                '{{ p[1] }}',
+                '{{ p[2]|e('js') }}',
+                '{{ p[3]|e('js') }}',
+                '{{ p[8]|e('js') or 'Nomaʼlum' }}',
+                '{{ p[4]|e('js') or '-' }}',
+                '{{ p[5]|e('js') }}',
+                '{{ p[6]|e('js') }}',
+                '{{ p[7]|e('js') }}'
+              )"
+              title="Chek chiqarish"
+            >
+              🖨️
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="11" class="no-data">Hozircha to‘lovlar yo‘q</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
 <script>
-function openReceiptPopup(id, ism, familiya) {
+function openReceiptPopup(
+  index, ism, summa, kurs, oy, tolov_turi, izoh, admin, oqituvchi, sana_soat
+) {
   const receiptContent = `
     <html>
     <head>
-      <title>Chek - ${ism} ${familiya}</title>
+      <title>Chek - ${ism}</title>
       <style>
         body {
           font-family: Arial, sans-serif;
@@ -189,13 +289,17 @@ function openReceiptPopup(id, ism, familiya) {
     </head>
     <body>
       <h2>Magistr O'quv Markazi</h2>
-      <p><strong>ID:</strong> ${id}</p>
-      <p><strong>Ism:</strong> ${ism}</p>
-      <p><strong>Familiya:</strong> ${familiya}</p>
-      <p><strong>Sana:</strong> ${new Date().toLocaleDateString()}</p>
+      <p><strong>ID:</strong> ${index}</p>
+      <p><strong>O‘quvchi:</strong> ${ism}</p>
+      <p><strong>Summa:</strong> ${summa} so‘m</p>
+      <p><strong>Kurs:</strong> ${kurs}</p>
+      <p><strong>Oyi:</strong> ${oy}</p>
+      <p><strong>To‘lov turi:</strong> ${tolov_turi}</p>
+      <p><strong>Izoh:</strong> ${izoh}</p>
+      <p><strong>Admin:</strong> ${admin}</p>
+      <p><strong>O‘qituvchi:</strong> ${oqituvchi}</p>
+      <p><strong>Sana & Soat:</strong> ${sana_soat}</p>
       <hr />
-      <p>To‘lov miqdori: <strong>500,000 UZS</strong></p>
-      <p>To‘lov turi: <strong>Naqd</strong></p>
       <div class="footer">Rahmat!</div>
       <button onclick="window.print()">Chop etish</button>
     </body>
@@ -211,4 +315,3 @@ function openReceiptPopup(id, ism, familiya) {
 
 </body>
 </html>
-
