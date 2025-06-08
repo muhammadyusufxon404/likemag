@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="uz">
 <head>
   <meta charset="UTF-8" />
@@ -97,4 +97,210 @@
 </body>
 </html>
 
+ -->
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Magistr To‘lov CRM</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 20px;
+    }
 
+    .container {
+      max-width: 1200px;
+      margin: auto;
+    }
+
+    h1, h2 {
+      color: #003366;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 10px 15px;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+
+    th {
+      background-color: #003366;
+      color: white;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+
+    .chek-btn {
+      background-color: #ffc107;
+      color: #000;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .chek-btn:hover {
+      background-color: #e0a800;
+    }
+
+    .no-data {
+      text-align: center;
+      font-style: italic;
+      color: #888;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.5);
+    }
+
+    .modal-content {
+      background-color: #fff;
+      margin: 10% auto;
+      padding: 20px;
+      border-radius: 10px;
+      width: 400px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .close:hover {
+      color: #000;
+    }
+
+    .modal-content h3 {
+      margin-top: 0;
+      color: #003366;
+    }
+
+    .modal-content p {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Magistr To‘lov CRM</h1>
+
+    <h2>Bugungi to‘lovlar ({{ tolovlar|length }})</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>O‘quvchi</th>
+          <th>Summa</th>
+          <th>Kurs</th>
+          <th>Oyi</th>
+          <th>To‘lov turi</th>
+          <th>Izoh</th>
+          <th>Admin</th>
+          <th>O‘qituvchi</th>
+          <th>Sana & Soat</th>
+          <th>Amal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in tolovlar %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ p[0] }}</td>
+          <td>{{ p[1] }} so‘m</td>
+          <td>{{ p[2] }}</td>
+          <td>{{ p[3] }}</td>
+          <td>{{ p[8] or '-' }}</td>
+          <td>{{ p[4] or '-' }}</td>
+          <td>{{ p[5] }}</td>
+          <td>{{ p[6] }}</td>
+          <td>{{ p[7] }}</td>
+          <td>
+            <button class="chek-btn"
+              data-ismi="{{ p[0] }}"
+              data-tolov="{{ p[1] }}"
+              data-kurs="{{ p[2] }}"
+              data-oy="{{ p[3] }}"
+              data-tolovturi="{{ p[8] or '-' }}"
+              data-izoh="{{ p[4] or '-' }}"
+              data-admin="{{ p[5] }}"
+              data-oqituvchi="{{ p[6] }}"
+              data-sana="{{ p[7] }}"
+            >Chek chiqarish</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="11" class="no-data">Hozircha to‘lovlar yo‘q</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Modal -->
+  <div id="chekModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h3>Chek ma'lumotlari</h3>
+      <p><strong>O‘quvchi:</strong> <span id="mIsmi"></span></p>
+      <p><strong>Summa:</strong> <span id="mTolov"></span> so‘m</p>
+      <p><strong>Kurs:</strong> <span id="mKurs"></span></p>
+      <p><strong>Oy:</strong> <span id="mOy"></span></p>
+      <p><strong>To‘lov turi:</strong> <span id="mTolovTuri"></span></p>
+      <p><strong>Izoh:</strong> <span id="mIzoh"></span></p>
+      <p><strong>Admin:</strong> <span id="mAdmin"></span></p>
+      <p><strong>O‘qituvchi:</strong> <span id="mOqituvchi"></span></p>
+      <p><strong>Sana:</strong> <span id="mSana"></span></p>
+    </div>
+  </div>
+
+  <script>
+    const modal = document.getElementById("chekModal");
+    const closeBtn = document.querySelector(".close");
+
+    document.querySelectorAll(".chek-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.getElementById("mIsmi").innerText = btn.dataset.ismi;
+        document.getElementById("mTolov").innerText = btn.dataset.tolov;
+        document.getElementById("mKurs").innerText = btn.dataset.kurs;
+        document.getElementById("mOy").innerText = btn.dataset.oy;
+        document.getElementById("mTolovTuri").innerText = btn.dataset.tolovturi;
+        document.getElementById("mIzoh").innerText = btn.dataset.izoh;
+        document.getElementById("mAdmin").innerText = btn.dataset.admin;
+        document.getElementById("mOqituvchi").innerText = btn.dataset.oqituvchi;
+        document.getElementById("mSana").innerText = btn.dataset.sana;
+        modal.style.display = "block";
+      });
+    });
+
+    closeBtn.onclick = () => modal.style.display = "none";
+    window.onclick = e => { if (e.target === modal) modal.style.display = "none"; };
+  </script>
+</body>
+</html>
