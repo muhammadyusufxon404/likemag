@@ -474,6 +474,7 @@ import pytz
 import asyncio
 import nest_asyncio
 import requests
+import threading
 
 from flask import Flask, render_template, request, redirect, url_for
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -681,27 +682,29 @@ async def send_daily_report(context: CallbackContext):
 
     if df.empty:
         for admin_id in ADMIN_CHAT_IDS:
-            await context.bot.send_message(chat_id=admin_id, text="Bugun hech qanday to‘lov bo‘lmadi.")
-    else:
-        os.makedirs("reports", exist_ok=True)
-        for oy in df['oy'].unique():
-            oy_df = df[df['oy'] == oy]
-            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-            oy_df.to_excel(file_path, index=False)
-            caption = f"\U0001F4C4 {today_dt.strftime('%d.%m.%Y')} - {oy} oyi uchun hisobot"
-            for admin_id in ADMIN_CHAT_IDS:
-                await context.bot.send_document(chat_id=admin_id, document=open(file_path, 'rb'), caption=caption)
+            await context.bot.send_message(chat_id=admin_id, text="Bugun to‘lovlar yo‘q.")
+        return
+
+    for oy in df['oy'].unique():
+        oy_df = df[df['oy'] == oy]
+        file_path = f"reports/daily_report_{today}_{oy}.xlsx"
+        oy_df.to_excel(file_path, index=False)
+
+        caption = f"\U0001F4C4 {today} - {oy} oyi uchun kunlik hisobot"
+        for admin_id in ADMIN_CHAT_IDS:
+            with open(file_path, 'rb') as f:
+                await context.bot.send_document(chat_id=admin_id, document=f, caption=caption)
 
 async def run_bot():
-    app_bot = Application.builder().token(BOT_TOKEN).build()
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(CallbackQueryHandler(handle_callback))
-    app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
-    print("✅ Bot ishga tushdi.")
-    await app_bot.run_polling()
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(handle_callback))
+    application.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
+    await application.run_polling()
 
 if __name__ == '__main__':
-    import threading
     nest_asyncio.apply()
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False)).start()
-    asyncio.run(run_bot())
+
+    # Flask va Telegram botni alohida ipda ishga tushirish
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)).start()
+    threading.Thread(target=lambda: asyncio.run(run_bot())).start()
