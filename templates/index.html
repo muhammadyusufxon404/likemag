@@ -130,7 +130,7 @@
     <h1>Magistr To‘lov CRM</h1>
 
     <form method="POST" action="{{ url_for('index') }}">
-      <!-- Form elementlar (o'zgartirmadim) -->
+      <!-- Form elementlar -->
       <label for="ismi">O‘quvchi ismi va familiyasi</label>
       <input type="text" id="ismi" name="ismi" required />
 
@@ -210,15 +210,15 @@
             <button class="print-btn"
               onclick="openReceiptPopup(
                 {{ loop.index }},
-                '{{ p[0]|e('js') }}',
-                '{{ p[1] }}',
-                '{{ p[2]|e('js') }}',
-                '{{ p[3]|e('js') }}',
-                '{{ p[8]|e('js') or 'Nomaʼlum' }}',
-                '{{ p[4]|e('js') or '-' }}',
-                '{{ p[5]|e('js') }}',
-                '{{ p[6]|e('js') }}',
-                '{{ p[7]|e('js') }}'
+                {{ p[0]|tojson }},
+                {{ p[1]|tojson }},
+                {{ p[2]|tojson }},
+                {{ p[3]|tojson }},
+                {{ p[8]|default('Nomaʼlum')|tojson }},
+                {{ p[4]|default('-')|tojson }},
+                {{ p[5]|tojson }},
+                {{ p[6]|tojson }},
+                {{ p[7]|tojson }}
               )"
               title="Chek chiqarish"
             >
