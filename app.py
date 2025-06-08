@@ -1,218 +1,218 @@
-# import os
-# import sqlite3
-# from datetime import datetime, time as dtime
-# import pandas as pd
-# import pytz
-# import asyncio
-# import nest_asyncio
-# import requests
+import os
+import sqlite3
+from datetime import datetime, time as dtime
+import pandas as pd
+import pytz
+import asyncio
+import nest_asyncio
+import requests
 
-# from flask import Flask, render_template, request, redirect, url_for
-# from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-# from telegram.ext import (
-#     Application,
-#     CommandHandler,
-#     CallbackContext,
-#     CallbackQueryHandler,
-# )
+from flask import Flask, render_template, request, redirect, url_for
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackContext,
+    CallbackQueryHandler,
+)
 
-# app = Flask(__name__)
-# DB_PATH = 'crm.db'
+app = Flask(__name__)
+DB_PATH = 'crm.db'
 
-# BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
-# ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027]
-
-
-# def init_db():
-#     if not os.path.exists(DB_PATH):
-#         con = sqlite3.connect(DB_PATH)
-#         cur = con.cursor()
-#         cur.execute('''
-#         CREATE TABLE tolovlar (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             ismi TEXT NOT NULL,
-#             tolov INTEGER NOT NULL,
-#             kurs TEXT NOT NULL,
-#             oy TEXT NOT NULL,
-#             izoh TEXT,
-#             admin TEXT NOT NULL,
-#             oqituvchi TEXT NOT NULL,
-#             vaqt TEXT NOT NULL,
-#             tolov_turi TEXT
-#         )
-#         ''')
-#         con.commit()
-#         con.close()
-
-# init_db()
-
-# @app.route('/', methods=['GET', 'POST'])
-# def index():
-#     if request.method == 'POST':
-#         ismi = request.form['ismi']
-#         tolov = int(request.form['tolov'])
-#         if tolov < 1000:
-#             tolov *= 1000
-#         kurs = request.form['kurs']
-#         oy = request.form['oy']
-#         izoh = request.form.get('izoh', '')
-#         admin = request.form['admin']
-#         oqituvchi = request.form['oqituvchi']
-#         tolov_turi = request.form['tolov_turi']
-
-#         uzbek_tz = pytz.timezone('Asia/Tashkent')
-#         vaqt = datetime.now(uzbek_tz).strftime('%Y-%m-%d %H:%M:%S')
-
-#         con = sqlite3.connect(DB_PATH)
-#         cur = con.cursor()
-#         cur.execute('''
-#             INSERT INTO tolovlar
-#             (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi)
-#             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-#         ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi))
-#         con.commit()
-#         con.close()
-
-#         message = (
-#             f"\U0001F4B3 *Yangi to‘lov kiritildi!*\n\n"
-#             f"\U0001F464 Ismi: {ismi}\n"
-#             f"\U0001F4B0 To‘lov: {tolov} so‘m\n"
-#             f"\U0001F4DA Kurs: {kurs} ({oy} oyi)\n"
-#             f"\U0001F4B3 To‘lov turi: {tolov_turi}\n"
-#             f"\U0001F468‍\U0001F3EB O‘qituvchi: {oqituvchi}\n"
-#             f"\U0001F9FE Admin: {admin}\n"
-#             f"\U0001F4AC Izoh: {izoh or 'Yo‘q'}\n"
-#             f"\U0001F552 Sana: {vaqt}"
-#         )
-
-#         for admin_id in ADMIN_CHAT_IDS:
-#             try:
-#                 requests.get(
-#                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-#                     params={
-#                         "chat_id": admin_id,
-#                         "text": message,
-#                         "parse_mode": "Markdown"
-#                     }
-#                 )
-#             except Exception as e:
-#                 print(f"Telegramga xabar yuborishda xatolik: {e}")
-
-#         return redirect(url_for('index'))
-
-#     today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
-#     con = sqlite3.connect(DB_PATH)
-#     cur = con.cursor()
-#     cur.execute('''
-#         SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
-#         FROM tolovlar
-#         WHERE date(vaqt) = ?
-#         ORDER BY vaqt DESC
-#     ''', (today,))
-#     tolovlar = cur.fetchall()
-#     con.close()
-
-#     return render_template('index.html', tolovlar=tolovlar)
+BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
+ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027]
 
 
-# # --- Telegram bot funksiyalari ---
-# async def start(update: Update, context: CallbackContext):
-#     user_id = update.effective_chat.id
-#     if user_id not in ADMIN_CHAT_IDS:
-#         await update.message.reply_text("Siz admin emassiz. Botdan foydalanish uchun ruxsat yo'q.")
-#         return
+def init_db():
+    if not os.path.exists(DB_PATH):
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute('''
+        CREATE TABLE tolovlar (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ismi TEXT NOT NULL,
+            tolov INTEGER NOT NULL,
+            kurs TEXT NOT NULL,
+            oy TEXT NOT NULL,
+            izoh TEXT,
+            admin TEXT NOT NULL,
+            oqituvchi TEXT NOT NULL,
+            vaqt TEXT NOT NULL,
+            tolov_turi TEXT
+        )
+        ''')
+        con.commit()
+        con.close()
 
-#     keyboard = [[InlineKeyboardButton("\U0001F4CA Bugungi to‘lovlar", callback_data="today_report")]]
-#     reply_markup = InlineKeyboardMarkup(keyboard)
-#     await update.message.reply_text("Xush kelibsiz, admin! Kerakli tugmani tanlang:", reply_markup=reply_markup)
+init_db()
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        ismi = request.form['ismi']
+        tolov = int(request.form['tolov'])
+        if tolov < 1000:
+            tolov *= 1000
+        kurs = request.form['kurs']
+        oy = request.form['oy']
+        izoh = request.form.get('izoh', '')
+        admin = request.form['admin']
+        oqituvchi = request.form['oqituvchi']
+        tolov_turi = request.form['tolov_turi']
+
+        uzbek_tz = pytz.timezone('Asia/Tashkent')
+        vaqt = datetime.now(uzbek_tz).strftime('%Y-%m-%d %H:%M:%S')
+
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute('''
+            INSERT INTO tolovlar
+            (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi))
+        con.commit()
+        con.close()
+
+        message = (
+            f"\U0001F4B3 *Yangi to‘lov kiritildi!*\n\n"
+            f"\U0001F464 Ismi: {ismi}\n"
+            f"\U0001F4B0 To‘lov: {tolov} so‘m\n"
+            f"\U0001F4DA Kurs: {kurs} ({oy} oyi)\n"
+            f"\U0001F4B3 To‘lov turi: {tolov_turi}\n"
+            f"\U0001F468‍\U0001F3EB O‘qituvchi: {oqituvchi}\n"
+            f"\U0001F9FE Admin: {admin}\n"
+            f"\U0001F4AC Izoh: {izoh or 'Yo‘q'}\n"
+            f"\U0001F552 Sana: {vaqt}"
+        )
+
+        for admin_id in ADMIN_CHAT_IDS:
+            try:
+                requests.get(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    params={
+                        "chat_id": admin_id,
+                        "text": message,
+                        "parse_mode": "Markdown"
+                    }
+                )
+            except Exception as e:
+                print(f"Telegramga xabar yuborishda xatolik: {e}")
+
+        return redirect(url_for('index'))
+
+    today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute('''
+        SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
+        FROM tolovlar
+        WHERE date(vaqt) = ?
+        ORDER BY vaqt DESC
+    ''', (today,))
+    tolovlar = cur.fetchall()
+    con.close()
+
+    return render_template('index.html', tolovlar=tolovlar)
 
 
-# async def handle_callback(update: Update, context: CallbackContext):
-#     query = update.callback_query
-#     await query.answer()
+# --- Telegram bot funksiyalari ---
+async def start(update: Update, context: CallbackContext):
+    user_id = update.effective_chat.id
+    if user_id not in ADMIN_CHAT_IDS:
+        await update.message.reply_text("Siz admin emassiz. Botdan foydalanish uchun ruxsat yo'q.")
+        return
 
-#     user_id = query.message.chat.id
-#     if user_id not in ADMIN_CHAT_IDS:
-#         await query.edit_message_text("Siz admin emassiz.")
-#         return
-
-#     if query.data == "today_report":
-#         uzbek_tz = pytz.timezone('Asia/Tashkent')
-#         today = datetime.now(uzbek_tz).date().isoformat()
-
-#         con = sqlite3.connect(DB_PATH)
-#         cur = con.cursor()
-#         cur.execute("""
-#             SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
-#             FROM tolovlar
-#             WHERE DATE(vaqt) = ?
-#             ORDER BY vaqt DESC
-#         """, (today,))
-#         rows = cur.fetchall()
-#         con.close()
-
-#         if not rows:
-#             await query.edit_message_text("Bugun uchun to‘lovlar yo‘q.")
-#             return
-
-#         total_sum = sum(row[1] for row in rows)  # tolov summasi
-
-#         # Jami summani yuborish
-#         message = f"\U0001F4C5 *{today}* sanasidagi jami to‘lov: *{total_sum}* so‘m"
-#         await query.edit_message_text(message, parse_mode="Markdown")
-
-#         # Excel fayllarni yaratish va yuborish
-#         os.makedirs("reports", exist_ok=True)
-#         df = pd.DataFrame(rows, columns=['ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi'])
-
-#         for oy in df['oy'].unique():
-#             oy_df = df[df['oy'] == oy]
-#             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-#             oy_df.to_excel(file_path, index=False)
-
-#             caption = f"\U0001F4C4 {today} - {oy} oyi uchun hisobot"
-#             for admin_id in ADMIN_CHAT_IDS:
-#                 with open(file_path, 'rb') as f:
-#                     await context.bot.send_document(chat_id=admin_id, document=f, caption=caption)
+    keyboard = [[InlineKeyboardButton("\U0001F4CA Bugungi to‘lovlar", callback_data="today_report")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Xush kelibsiz, admin! Kerakli tugmani tanlang:", reply_markup=reply_markup)
 
 
-# async def send_daily_report(context: CallbackContext):
-#     uzbek_tz = pytz.timezone('Asia/Tashkent')
-#     today_dt = datetime.now(uzbek_tz)
-#     today = today_dt.date().isoformat()
+async def handle_callback(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
 
-#     con = sqlite3.connect(DB_PATH)
-#     df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", con, params=(today,))
-#     con.close()
+    user_id = query.message.chat.id
+    if user_id not in ADMIN_CHAT_IDS:
+        await query.edit_message_text("Siz admin emassiz.")
+        return
 
-#     if df.empty:
-#         for admin_id in ADMIN_CHAT_IDS:
-#             await context.bot.send_message(chat_id=admin_id, text="Bugun hech qanday to‘lov bo‘lmadi.")
-#     else:
-#         os.makedirs("reports", exist_ok=True)
-#         for oy in df['oy'].unique():
-#             oy_df = df[df['oy'] == oy]
-#             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-#             oy_df.to_excel(file_path, index=False)
-#             caption = f"\U0001F4C4 {today_dt.strftime('%d.%m.%Y')} - {oy} oyi uchun hisobot"
-#             for admin_id in ADMIN_CHAT_IDS:
-#                 await context.bot.send_document(chat_id=admin_id, document=open(file_path, 'rb'), caption=caption)
+    if query.data == "today_report":
+        uzbek_tz = pytz.timezone('Asia/Tashkent')
+        today = datetime.now(uzbek_tz).date().isoformat()
+
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute("""
+            SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
+            FROM tolovlar
+            WHERE DATE(vaqt) = ?
+            ORDER BY vaqt DESC
+        """, (today,))
+        rows = cur.fetchall()
+        con.close()
+
+        if not rows:
+            await query.edit_message_text("Bugun uchun to‘lovlar yo‘q.")
+            return
+
+        total_sum = sum(row[1] for row in rows)  # tolov summasi
+
+        # Jami summani yuborish
+        message = f"\U0001F4C5 *{today}* sanasidagi jami to‘lov: *{total_sum}* so‘m"
+        await query.edit_message_text(message, parse_mode="Markdown")
+
+        # Excel fayllarni yaratish va yuborish
+        os.makedirs("reports", exist_ok=True)
+        df = pd.DataFrame(rows, columns=['ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi'])
+
+        for oy in df['oy'].unique():
+            oy_df = df[df['oy'] == oy]
+            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
+            oy_df.to_excel(file_path, index=False)
+
+            caption = f"\U0001F4C4 {today} - {oy} oyi uchun hisobot"
+            for admin_id in ADMIN_CHAT_IDS:
+                with open(file_path, 'rb') as f:
+                    await context.bot.send_document(chat_id=admin_id, document=f, caption=caption)
 
 
-# async def run_bot():
-#     app_bot = Application.builder().token(BOT_TOKEN).build()
-#     app_bot.add_handler(CommandHandler("start", start))
-#     app_bot.add_handler(CallbackQueryHandler(handle_callback))
-#     app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
-#     print("✅ Bot ishga tushdi.")
-#     await app_bot.run_polling()
+async def send_daily_report(context: CallbackContext):
+    uzbek_tz = pytz.timezone('Asia/Tashkent')
+    today_dt = datetime.now(uzbek_tz)
+    today = today_dt.date().isoformat()
+
+    con = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", con, params=(today,))
+    con.close()
+
+    if df.empty:
+        for admin_id in ADMIN_CHAT_IDS:
+            await context.bot.send_message(chat_id=admin_id, text="Bugun hech qanday to‘lov bo‘lmadi.")
+    else:
+        os.makedirs("reports", exist_ok=True)
+        for oy in df['oy'].unique():
+            oy_df = df[df['oy'] == oy]
+            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
+            oy_df.to_excel(file_path, index=False)
+            caption = f"\U0001F4C4 {today_dt.strftime('%d.%m.%Y')} - {oy} oyi uchun hisobot"
+            for admin_id in ADMIN_CHAT_IDS:
+                await context.bot.send_document(chat_id=admin_id, document=open(file_path, 'rb'), caption=caption)
 
 
-# if __name__ == '__main__':
-#     import threading
-#     nest_asyncio.apply()
-#     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False)).start()
-#     asyncio.run(run_bot())
+async def run_bot():
+    app_bot = Application.builder().token(BOT_TOKEN).build()
+    app_bot.add_handler(CommandHandler("start", start))
+    app_bot.add_handler(CallbackQueryHandler(handle_callback))
+    app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
+    print("✅ Bot ishga tushdi.")
+    await app_bot.run_polling()
+
+
+if __name__ == '__main__':
+    import threading
+    nest_asyncio.apply()
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False)).start()
+    asyncio.run(run_bot())
 
 # import os
 # import sqlite3
@@ -466,245 +466,3 @@
 #     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False)).start()
 #     asyncio.run(run_bot())
 
-import os
-import sqlite3
-from datetime import datetime, time as dtime
-import pandas as pd
-import pytz
-import asyncio
-import nest_asyncio
-import requests
-import threading
-
-from flask import Flask, render_template, request, redirect, url_for
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackContext,
-    CallbackQueryHandler,
-)
-
-app = Flask(__name__)
-DB_PATH = 'crm.db'
-
-BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
-ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027]
-
-def init_db():
-    if not os.path.exists(DB_PATH):
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
-        cur.execute('''
-        CREATE TABLE tolovlar (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ismi TEXT NOT NULL,
-            tolov INTEGER NOT NULL,
-            kurs TEXT NOT NULL,
-            oy TEXT NOT NULL,
-            izoh TEXT,
-            admin TEXT NOT NULL,
-            oqituvchi TEXT NOT NULL,
-            vaqt TEXT NOT NULL,
-            tolov_turi TEXT
-        )
-        ''')
-        con.commit()
-        con.close()
-
-init_db()
-
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        ismi = request.form['ismi']
-        tolov = int(request.form['tolov'])
-        if tolov < 1000:
-            tolov *= 1000
-        kurs = request.form['kurs']
-        oy = request.form['oy']
-        izoh = request.form.get('izoh', '')
-        admin = request.form['admin']
-        oqituvchi = request.form['oqituvchi']
-        tolov_turi = request.form['tolov_turi']
-
-        uzbek_tz = pytz.timezone('Asia/Tashkent')
-        vaqt = datetime.now(uzbek_tz).strftime('%Y-%m-%d %H:%M:%S')
-
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
-        cur.execute('''
-            INSERT INTO tolovlar
-            (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi))
-        con.commit()
-        con.close()
-
-        message = (
-            f"\U0001F4B3 *Yangi to‘lov kiritildi!*\n\n"
-            f"\U0001F464 Ismi: {ismi}\n"
-            f"\U0001F4B0 To‘lov: {tolov} so‘m\n"
-            f"\U0001F4DA Kurs: {kurs} ({oy} oyi)\n"
-            f"\U0001F4B3 To‘lov turi: {tolov_turi}\n"
-            f"\U0001F468‍\U0001F3EB O‘qituvchi: {oqituvchi}\n"
-            f"\U0001F9FE Admin: {admin}\n"
-            f"\U0001F4AC Izoh: {izoh or 'Yo‘q'}\n"
-            f"\U0001F552 Sana: {vaqt}"
-        )
-
-        for admin_id in ADMIN_CHAT_IDS:
-            try:
-                requests.get(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    params={
-                        "chat_id": admin_id,
-                        "text": message,
-                        "parse_mode": "Markdown"
-                    }
-                )
-            except Exception as e:
-                print(f"Telegramga xabar yuborishda xatolik: {e}")
-
-        return redirect(url_for('index'))
-
-    today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
-    con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute('''
-        SELECT id, ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
-        FROM tolovlar
-        WHERE date(vaqt) = ?
-        ORDER BY vaqt DESC
-    ''', (today,))
-    tolovlar = cur.fetchall()
-    con.close()
-
-    return render_template('index.html', tolovlar=tolovlar)
-
-@app.route('/print_receipt', methods=['POST'])
-def print_receipt():
-    tolov_id = request.form.get('id')
-    if not tolov_id:
-        return "ID kiritilmadi", 400
-
-    con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute('SELECT * FROM tolovlar WHERE id = ?', (tolov_id,))
-    tolov = cur.fetchone()
-    con.close()
-
-    if not tolov:
-        return "To‘lov topilmadi", 404
-
-    kvitansiya_matni = (
-        f"--- Magistr To‘lov Kvittansiyasi ---\n"
-        f"ID: {tolov[0]}\n"
-        f"O‘quvchi: {tolov[1]}\n"
-        f"To‘lov: {tolov[2]} so‘m\n"
-        f"Kurs: {tolov[3]}\n"
-        f"Oy: {tolov[4]}\n"
-        f"Izoh: {tolov[5] or 'Yo‘q'}\n"
-        f"Admin: {tolov[6]}\n"
-        f"O‘qituvchi: {tolov[7]}\n"
-        f"Sana: {tolov[8]}\n"
-        f"To‘lov turi: {tolov[9] or '-'}\n"
-        f"-----------------------------"
-    )
-
-    return f"<pre>{kvitansiya_matni}</pre>"
-
-# --- Telegram bot funksiyalari ---
-async def start(update: Update, context: CallbackContext):
-    user_id = update.effective_chat.id
-    if user_id not in ADMIN_CHAT_IDS:
-        await update.message.reply_text("Siz admin emassiz. Botdan foydalanish uchun ruxsat yo'q.")
-        return
-
-    keyboard = [[InlineKeyboardButton("\U0001F4CA Bugungi to‘lovlar", callback_data="today_report")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Xush kelibsiz, admin! Kerakli tugmani tanlang:", reply_markup=reply_markup)
-
-async def handle_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    await query.answer()
-
-    user_id = query.message.chat.id
-    if user_id not in ADMIN_CHAT_IDS:
-        await query.edit_message_text("Siz admin emassiz.")
-        return
-
-    if query.data == "today_report":
-        uzbek_tz = pytz.timezone('Asia/Tashkent')
-        today = datetime.now(uzbek_tz).date().isoformat()
-
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
-        cur.execute("""
-            SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
-            FROM tolovlar
-            WHERE DATE(vaqt) = ?
-            ORDER BY vaqt DESC
-        """, (today,))
-        rows = cur.fetchall()
-        con.close()
-
-        if not rows:
-            await query.edit_message_text("Bugun uchun to‘lovlar yo‘q.")
-            return
-
-        total_sum = sum(row[1] for row in rows)  # tolov summasi
-
-        message = f"\U0001F4C5 *{today}* sanasidagi jami to‘lov: *{total_sum}* so‘m"
-        await query.edit_message_text(message, parse_mode="Markdown")
-
-        os.makedirs("reports", exist_ok=True)
-        df = pd.DataFrame(rows, columns=['ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi'])
-
-        for oy in df['oy'].unique():
-            oy_df = df[df['oy'] == oy]
-            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-            oy_df.to_excel(file_path, index=False)
-
-            caption = f"\U0001F4C4 {today} - {oy} oyi uchun hisobot"
-            for admin_id in ADMIN_CHAT_IDS:
-                with open(file_path, 'rb') as f:
-                    await context.bot.send_document(chat_id=admin_id, document=f, caption=caption)
-
-async def send_daily_report(context: CallbackContext):
-    uzbek_tz = pytz.timezone('Asia/Tashkent')
-    today_dt = datetime.now(uzbek_tz)
-    today = today_dt.date().isoformat()
-
-    con = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", con, params=(today,))
-    con.close()
-
-    if df.empty:
-        for admin_id in ADMIN_CHAT_IDS:
-            await context.bot.send_message(chat_id=admin_id, text="Bugun to‘lovlar yo‘q.")
-        return
-
-    for oy in df['oy'].unique():
-        oy_df = df[df['oy'] == oy]
-        file_path = f"reports/daily_report_{today}_{oy}.xlsx"
-        oy_df.to_excel(file_path, index=False)
-
-        caption = f"\U0001F4C4 {today} - {oy} oyi uchun kunlik hisobot"
-        for admin_id in ADMIN_CHAT_IDS:
-            with open(file_path, 'rb') as f:
-                await context.bot.send_document(chat_id=admin_id, document=f, caption=caption)
-
-async def run_bot():
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(handle_callback))
-    application.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
-    await application.run_polling()
-
-if __name__ == '__main__':
-    nest_asyncio.apply()
-
-    # Flask va Telegram botni alohida ipda ishga tushirish
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)).start()
-    threading.Thread(target=lambda: asyncio.run(run_bot())).start()
