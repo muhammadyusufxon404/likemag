@@ -105,7 +105,7 @@
   <title>Magistr To‘lov CRM</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   <style>
-    /* Oddiy modal style */
+    /* Oddiy modal style XP-58 printerga mos */
     .modal {
       display: none;
       position: fixed;
@@ -116,38 +116,66 @@
     }
     .modal-content {
       background-color: #fff;
-      margin: 8% auto;
-      padding: 20px 30px;
-      border-radius: 10px;
-      max-width: 400px;
+      margin: 5% auto;
+      padding: 10px 15px;
+      border-radius: 8px;
+      width: 280px; /* 58 mm termal printer uchun kenglik */
       box-shadow: 0 0 15px rgba(0,0,0,0.3);
-      font-family: monospace;
-      font-size: 14px;
-      line-height: 1.5;
+      font-family: monospace, monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #000;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      text-align: left;
+      position: relative;
     }
-    .close {
-      color: #888;
-      float: right;
-      font-size: 24px;
+    #checkData p {
+      margin: 3px 0;
+      padding: 0;
+    }
+    h2, h3 {
+      margin: 5px 0;
+      text-align: center;
       font-weight: bold;
-      cursor: pointer;
-      user-select: none;
     }
-    .close:hover {
-      color: black;
+    h2 {
+      font-size: 14px;
     }
+    h3 {
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    /* Chop etish tugmasi */
     button.print-btn {
-      margin-top: 15px;
-      padding: 8px 15px;
+      margin-top: 12px;
+      width: 100%;
+      padding: 8px 0;
       font-weight: bold;
       background-color: #004085;
       color: white;
       border: none;
       border-radius: 5px;
       cursor: pointer;
+      font-size: 14px;
     }
     button.print-btn:hover {
       background-color: #002752;
+    }
+    /* Close tugmasi kichikroq */
+    .close {
+      color: #888;
+      float: right;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+      position: absolute;
+      top: 6px;
+      right: 10px;
+    }
+    .close:hover {
+      color: black;
     }
   </style>
 </head>
@@ -251,27 +279,28 @@
   <div id="checkModal" class="modal">
     <div class="modal-content" id="checkContent">
       <span class="close" onclick="closeCheckModal()">&times;</span>
-      <h2>To‘lov Cheki</h2>
-      <div id="checkData"></div>
       <h2>MAGISTR O'QUV MARKAZI!</h2>
+      <h3>To‘lov Cheki</h3>
+      <pre id="checkData" style="font-family: monospace; white-space: pre-wrap;"></pre>
       <button class="print-btn" onclick="window.print()">Chekni chop etish</button>
     </div>
   </div>
 
   <script>
     function showCheckModal(ismi, summa, kurs, oy, izoh, admin, oqituvchi, sana, turi) {
+      izoh = izoh === '-' ? '' : izoh;
       const data = `
-        <p><strong>O‘quvchi:</strong> ${ismi}</p>
-        <p><strong>Summa:</strong> ${summa} so‘m</p>
-        <p><strong>Kurs:</strong> ${kurs}</p>
-        <p><strong>Oyi:</strong> ${oy}</p>
-        <p><strong>To‘lov turi:</strong> ${turi}</p>
-        <p><strong>Izoh:</strong> ${izoh}</p>
-        <p><strong>Admin:</strong> ${admin}</p>
-        <p><strong>O‘qituvchi:</strong> ${oqituvchi}</p>
-        <p><strong>Sana & Soat:</strong> ${sana}</p>
+O‘quvchi   : ${ismi}
+Summa      : ${summa} so‘m
+Kurs       : ${kurs}
+Oyi        : ${oy}
+To‘lov turi: ${turi}
+Izoh       : ${izoh || '-'}
+Admin      : ${admin}
+O‘qituvchi : ${oqituvchi}
+Sana & Soat: ${sana}
       `;
-      document.getElementById('checkData').innerHTML = data;
+      document.getElementById('checkData').textContent = data.trim();
       document.getElementById('checkModal').style.display = 'block';
     }
 
@@ -281,7 +310,7 @@
 
     window.onclick = function(event) {
       const modal = document.getElementById('checkModal');
-      if (event.target == modal) {
+      if (event.target === modal) {
         closeCheckModal();
       }
     }
