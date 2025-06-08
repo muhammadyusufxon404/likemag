@@ -104,12 +104,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Magistr To‘lov CRM</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    /* Oddiy modal CSS */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0; top: 0; width: 100%; height: 100%;
+      overflow: auto;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: #fff;
+      margin: 10% auto;
+      padding: 20px;
+      border-radius: 8px;
+      width: 320px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      font-family: Arial, sans-serif;
+    }
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover {
+      color: #000;
+    }
+    button {
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>Magistr To‘lov CRM</h1>
 
     <form method="POST" action="{{ url_for('index') }}">
+      <!-- Form maydonlari ... (o'zgartirmadim) -->
       <label for="ismi">O‘quvchi ismi va familiyasi</label>
       <input type="text" id="ismi" name="ismi" required />
 
@@ -150,17 +184,7 @@
     <table>
       <thead>
         <tr>
-          <th>#</th>
-          <th>O‘quvchi</th>
-          <th>Summa</th>
-          <th>Kurs</th>
-          <th>Oyi</th>
-          <th>To‘lov turi</th>
-          <th>Izoh</th>
-          <th>Admin</th>
-          <th>O‘qituvchi</th>
-          <th>Sana & Soat</th>
-          <th>Amal</th>
+          <th>#</th><th>O‘quvchi</th><th>Summa</th><th>Kurs</th><th>Oyi</th><th>To‘lov turi</th><th>Izoh</th><th>Admin</th><th>O‘qituvchi</th><th>Sana & Soat</th><th>Amal</th>
         </tr>
       </thead>
       <tbody>
@@ -177,7 +201,19 @@
           <td>{{ p[6] }}</td>
           <td>{{ p[7] }}</td>
           <td>
-            <button onclick="showCheckModal(`{{ p[0] }}`, `{{ p[1] }}`, `{{ p[2] }}`, `{{ p[3] }}`, `{{ p[4] }}`, `{{ p[5] }}`, `{{ p[6] }}`, `{{ p[7] }}`, `{{ p[8] or '-' }}`)">Chek chiqarish</button>
+            <button
+              onclick="showCheckModal(
+                {{ p[0]|tojson }}, 
+                {{ p[1]|tojson }}, 
+                {{ p[2]|tojson }}, 
+                {{ p[3]|tojson }}, 
+                {{ p[4]|tojson }}, 
+                {{ p[5]|tojson }}, 
+                {{ p[6]|tojson }}, 
+                {{ p[7]|tojson }}, 
+                {{ (p[8] or '-')|tojson }}
+              )"
+            >Chek chiqarish</button>
           </td>
         </tr>
         {% else %}
@@ -220,9 +256,10 @@
       document.getElementById('checkModal').style.display = 'none';
     }
 
+    // Modal oynadan tashqariga bosilganda yopish
     window.onclick = function(event) {
       const modal = document.getElementById('checkModal');
-      if (event.target == modal) {
+      if (event.target === modal) {
         modal.style.display = "none";
       }
     }
