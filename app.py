@@ -266,7 +266,7 @@ from telegram.ext import (
 
 app = Flask(__name__)
 DB_PATH = 'crm.db'
-BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
+BOT_TOKEN = 'TOKENINGNI_QO\'Y'
 ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027, 6449680789]
 
 
@@ -414,7 +414,7 @@ async def handle_callback(update: Update, context: CallbackContext):
         for oy in df['oy'].unique():
             oy_df = df[df['oy'] == oy].copy()
 
-            # ✅ Yangi qator: Jami to‘lov
+            # ✅ Oxirida Jami, Naqd, Klik qo‘shish
             jami_row = pd.DataFrame({
                 'id': [''],
                 'ismi': ['Jami to‘lov'],
@@ -427,7 +427,31 @@ async def handle_callback(update: Update, context: CallbackContext):
                 'vaqt': [''],
                 'tolov_turi': ['']
             })
-            oy_df = pd.concat([oy_df, jami_row], ignore_index=True)
+            naqd_row = pd.DataFrame({
+                'id': [''],
+                'ismi': ['Naqd'],
+                'tolov': [oy_df.loc[oy_df['tolov_turi'] == 'naqd', 'tolov'].sum()],
+                'kurs': [''],
+                'oy': [''],
+                'izoh': [''],
+                'admin': [''],
+                'oqituvchi': [''],
+                'vaqt': [''],
+                'tolov_turi': ['']
+            })
+            klik_row = pd.DataFrame({
+                'id': [''],
+                'ismi': ['Klik'],
+                'tolov': [oy_df.loc[oy_df['tolov_turi'] == 'klik', 'tolov'].sum()],
+                'kurs': [''],
+                'oy': [''],
+                'izoh': [''],
+                'admin': [''],
+                'oqituvchi': [''],
+                'vaqt': [''],
+                'tolov_turi': ['']
+            })
+            oy_df = pd.concat([oy_df, jami_row, naqd_row, klik_row], ignore_index=True)
 
             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
 
@@ -493,7 +517,7 @@ async def send_daily_report(context: CallbackContext):
         for oy in df['oy'].unique():
             oy_df = df[df['oy'] == oy].copy()
 
-            # ✅ Yangi qator: Jami to‘lov
+            # ✅ Oxirida Jami, Naqd, Klik qo‘shish
             jami_row = pd.DataFrame({
                 'id': [''],
                 'ismi': ['Jami to‘lov'],
@@ -506,7 +530,31 @@ async def send_daily_report(context: CallbackContext):
                 'vaqt': [''],
                 'tolov_turi': ['']
             })
-            oy_df = pd.concat([oy_df, jami_row], ignore_index=True)
+            naqd_row = pd.DataFrame({
+                'id': [''],
+                'ismi': ['Naqd'],
+                'tolov': [oy_df.loc[oy_df['tolov_turi'] == 'naqd', 'tolov'].sum()],
+                'kurs': [''],
+                'oy': [''],
+                'izoh': [''],
+                'admin': [''],
+                'oqituvchi': [''],
+                'vaqt': [''],
+                'tolov_turi': ['']
+            })
+            klik_row = pd.DataFrame({
+                'id': [''],
+                'ismi': ['Klik'],
+                'tolov': [oy_df.loc[oy_df['tolov_turi'] == 'klik', 'tolov'].sum()],
+                'kurs': [''],
+                'oy': [''],
+                'izoh': [''],
+                'admin': [''],
+                'oqituvchi': [''],
+                'vaqt': [''],
+                'tolov_turi': ['']
+            })
+            oy_df = pd.concat([oy_df, jami_row, naqd_row, klik_row], ignore_index=True)
 
             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
 
