@@ -266,7 +266,7 @@ from telegram.ext import (
 
 app = Flask(__name__)
 DB_PATH = 'crm.db'
-BOT_TOKEN = 'TOKENINGNI_QO\'Y'
+BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
 ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027, 6449680789]
 
 
