@@ -415,6 +415,8 @@ async def handle_callback(update: Update, context: CallbackContext):
             oy_df = df[df['oy'] == oy].copy()
 
             # ✅ Oxirida Jami, Naqd, Klik qo‘shish
+            oy_df['tolov_turi'] = oy_df['tolov_turi'].astype(str).str.lower()
+
             jami_row = pd.DataFrame({
                 'id': [''],
                 'ismi': ['Jami to‘lov'],
@@ -427,10 +429,14 @@ async def handle_callback(update: Update, context: CallbackContext):
                 'vaqt': [''],
                 'tolov_turi': ['']
             })
+
+            naqd_sum = oy_df.loc[oy_df['tolov_turi'] == 'naqd', 'tolov'].sum()
+            klik_sum = oy_df.loc[oy_df['tolov_turi'].isin(['klik', 'click']), 'tolov'].sum()
+
             naqd_row = pd.DataFrame({
                 'id': [''],
                 'ismi': ['Naqd'],
-                'tolov': [oy_df.loc[oy_df['tolov_turi'] == 'naqd', 'tolov'].sum()],
+                'tolov': [naqd_sum],
                 'kurs': [''],
                 'oy': [''],
                 'izoh': [''],
@@ -442,7 +448,7 @@ async def handle_callback(update: Update, context: CallbackContext):
             klik_row = pd.DataFrame({
                 'id': [''],
                 'ismi': ['Klik'],
-                'tolov': [oy_df.loc[oy_df['tolov_turi'] == 'klik', 'tolov'].sum()],
+                'tolov': [klik_sum],
                 'kurs': [''],
                 'oy': [''],
                 'izoh': [''],
@@ -451,6 +457,7 @@ async def handle_callback(update: Update, context: CallbackContext):
                 'vaqt': [''],
                 'tolov_turi': ['']
             })
+
             oy_df = pd.concat([oy_df, jami_row, naqd_row, klik_row], ignore_index=True)
 
             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
@@ -518,6 +525,8 @@ async def send_daily_report(context: CallbackContext):
             oy_df = df[df['oy'] == oy].copy()
 
             # ✅ Oxirida Jami, Naqd, Klik qo‘shish
+            oy_df['tolov_turi'] = oy_df['tolov_turi'].astype(str).str.lower()
+
             jami_row = pd.DataFrame({
                 'id': [''],
                 'ismi': ['Jami to‘lov'],
@@ -530,10 +539,14 @@ async def send_daily_report(context: CallbackContext):
                 'vaqt': [''],
                 'tolov_turi': ['']
             })
+
+            naqd_sum = oy_df.loc[oy_df['tolov_turi'] == 'naqd', 'tolov'].sum()
+            klik_sum = oy_df.loc[oy_df['tolov_turi'].isin(['klik', 'click']), 'tolov'].sum()
+
             naqd_row = pd.DataFrame({
                 'id': [''],
                 'ismi': ['Naqd'],
-                'tolov': [oy_df.loc[oy_df['tolov_turi'] == 'naqd', 'tolov'].sum()],
+                'tolov': [naqd_sum],
                 'kurs': [''],
                 'oy': [''],
                 'izoh': [''],
@@ -545,7 +558,7 @@ async def send_daily_report(context: CallbackContext):
             klik_row = pd.DataFrame({
                 'id': [''],
                 'ismi': ['Klik'],
-                'tolov': [oy_df.loc[oy_df['tolov_turi'] == 'klik', 'tolov'].sum()],
+                'tolov': [klik_sum],
                 'kurs': [''],
                 'oy': [''],
                 'izoh': [''],
@@ -554,6 +567,7 @@ async def send_daily_report(context: CallbackContext):
                 'vaqt': [''],
                 'tolov_turi': ['']
             })
+
             oy_df = pd.concat([oy_df, jami_row, naqd_row, klik_row], ignore_index=True)
 
             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
