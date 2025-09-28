@@ -6,7 +6,6 @@
 # import asyncio
 # import nest_asyncio
 # import requests
-
 # from flask import Flask, render_template, request, redirect, url_for
 # from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 # from telegram.ext import (
@@ -22,7 +21,6 @@
 # BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
 # ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027, 6449680789]
 
-# # --- DATABASE ---
 # def init_db():
 #     if not os.path.exists(DB_PATH):
 #         con = sqlite3.connect(DB_PATH)
@@ -46,7 +44,6 @@
 
 # init_db()
 
-# # --- FLASK ---
 # @app.route('/', methods=['GET', 'POST'])
 # def index():
 #     if request.method == 'POST':
@@ -72,7 +69,6 @@
 #         con.commit()
 #         con.close()
 
-#         # Telegramga xabar yuborish
 #         message = (
 #             f"💳 *Yangi to‘lov kiritildi!*\n\n"
 #             f"👤 Ismi: {ismi}\n"
@@ -100,7 +96,6 @@
 
 #         return redirect(url_for('index'))
 
-#     # Bugungi to‘lovlarni chiqarish
 #     today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
 #     con = sqlite3.connect(DB_PATH)
 #     cur = con.cursor()
@@ -115,7 +110,6 @@
 
 #     return render_template('index.html', tolovlar=tolovlar)
 
-# # --- TELEGRAM BOT ---
 # async def start(update: Update, context: CallbackContext):
 #     user_id = update.effective_chat.id
 #     if user_id not in ADMIN_CHAT_IDS:
@@ -139,7 +133,6 @@
 #         await query.edit_message_text("Siz admin emassiz.")
 #         return
 
-#     # Bugungi to‘lovlar
 #     if query.data == "today_report":
 #         today = datetime.now(pytz.timezone('Asia/Tashkent')).date().isoformat()
 #         con = sqlite3.connect(DB_PATH)
@@ -149,31 +142,42 @@
 #         con.close()
 
 #         if not rows:
-#             await query.edit_message_text("Bugun hech qanday to‘lov yo‘q.")
+#             await query.edit_message_text(f"📅 *{today}* kuni hech qanday to‘lov yo‘q. Excel fayl yaratilmadi.", parse_mode="Markdown")
 #             return
 
 #         total_sum = sum(row[2] for row in rows)
 #         await query.edit_message_text(f"📅 *{today}* kuni jami to‘lov: *{total_sum:,}* so‘m", parse_mode="Markdown")
 
-#         # Hisobot
-#         df = pd.DataFrame(rows, columns=['id','ismi','tolov','kurs','oy','izoh','admin','oqituvchi','vaqt','tolov_turi'])
+#         df = pd.DataFrame(rows, columns=['id', 'ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi'])
 #         os.makedirs("reports", exist_ok=True)
 #         for oy in df['oy'].unique():
-#             oy_df = df[df['oy'] == oy]
-#             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-#             oy_df.to_excel(file_path, index=False)
-#             for admin_id in ADMIN_CHAT_IDS:
-#                 with open(file_path, 'rb') as f:
-#                     await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy} oyi - {today}")
+#             oy_df = df[df['oy'] == oy].copy()  # Copy to avoid SettingWithCopyWarning
+#             # Jami to'lov qatorini qo'shish
+#             jami_row = pd.DataFrame({
+#                 'id': [''], 'ismi': ['Jami to‘lov'], 'tolov': [oy_df['tolov'].sum()],
+#                 'kurs': [''], 'oy': [''], 'izoh': [''], 'admin': [''],
+#                 'oqituvchi': [''], 'vaqt': [''], 'tolov_turi': ['']
+#             })
+#             oy_df = pd.concat([oy_df, jami_row], ignore_index=True)
+#             file_path = f"reports/hisobot_{today}_{oy}.xlsx"  # Timestamp olib tashlandi
+#             try:
+#                 oy_df.to_excel(file_path, index=False)
+#                 for admin_id in ADMIN_CHAT_IDS:
+#                     try:
+#                         with open(file_path, 'rb') as f:
+#                             await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy.capitalize()} oyi - {today}")
+#                     except Exception as e:
+#                         print(f"Failed to send document to admin {admin_id}: {e}")
+#             except Exception as e:
+#                 print(f"Failed to generate Excel for {oy}: {e}")
+#                 await context.bot.send_message(chat_id=user_id, text=f"Excel fayl yaratishda xato: {oy}")
 
-#     # Oylik menyu
 #     elif query.data == "oylik_menyu":
 #         oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"]
 #         keyboard = [[InlineKeyboardButton(f"🗓 {oy}", callback_data=f"month_{oy.lower()}")] for oy in oylar]
 #         reply_markup = InlineKeyboardMarkup(keyboard)
 #         await query.edit_message_text("Oy bo‘yicha hisobotni tanlang:", reply_markup=reply_markup)
 
-#     # Oylik hisobot
 #     elif query.data.startswith("month_"):
 #         oy_nomi = query.data.replace("month_", "")
 #         con = sqlite3.connect(DB_PATH)
@@ -189,16 +193,6 @@
 #         total_sum = sum(row[0] for row in rows)
 #         await query.edit_message_text(f"🗓 *{oy_nomi.capitalize()}* oyi uchun jami to‘lov: *{total_sum:,}* so‘m", parse_mode="Markdown")
 
-# # --- BOTNI ISHGA TUSHIRISH ---
-# async def run_bot():
-#     app_bot = Application.builder().token(BOT_TOKEN).build()
-#     app_bot.add_handler(CommandHandler("start", start))
-#     app_bot.add_handler(CallbackQueryHandler(handle_callback))
-#     app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
-#     print("✅ Bot ishga tushdi.")
-#     await app_bot.run_polling()
-
-# # --- KUNLIK HISOBOT (ISTASANGIZ) ---
 # async def send_daily_report(context: CallbackContext):
 #     today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
 #     con = sqlite3.connect(DB_PATH)
@@ -207,18 +201,46 @@
 
 #     if df.empty:
 #         for admin_id in ADMIN_CHAT_IDS:
-#             await context.bot.send_message(chat_id=admin_id, text="Bugun hech qanday to‘lov bo‘lmadi.")
+#             try:
+#                 await context.bot.send_message(chat_id=admin_id, text=f"📅 {today} kuni hech qanday to‘lov bo‘lmadi.")
+#             except Exception as e:
+#                 print(f"Failed to send empty report message to admin {admin_id}: {e}")
 #     else:
 #         os.makedirs("reports", exist_ok=True)
 #         for oy in df['oy'].unique():
-#             oy_df = df[df['oy'] == oy]
-#             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-#             oy_df.to_excel(file_path, index=False)
-#             for admin_id in ADMIN_CHAT_IDS:
-#                 with open(file_path, 'rb') as f:
-#                     await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy} oyi - {today}")
+#             oy_df = df[df['oy'] == oy].copy()  # Copy to avoid SettingWithCopyWarning
+#             # Jami to'lov qatorini qo'shish
+#             jami_row = pd.DataFrame({
+#                 'id': [''], 'ismi': ['Jami to‘lov'], 'tolov': [oy_df['tolov'].sum()],
+#                 'kurs': [''], 'oy': [''], 'izoh': [''], 'admin': [''],
+#                 'oqituvchi': [''], 'vaqt': [''], 'tolov_turi': ['']
+#             })
+#             oy_df = pd.concat([oy_df, jami_row], ignore_index=True)
+#             file_path = f"reports/hisobot_{today}_{oy}.xlsx"  # Timestamp olib tashlandi
+#             try:
+#                 oy_df.to_excel(file_path, index=False)
+#                 for admin_id in ADMIN_CHAT_IDS:
+#                     try:
+#                         with open(file_path, 'rb') as f:
+#                             await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy.capitalize()} oyi - {today}")
+#                     except Exception as e:
+#                         print(f"Failed to send document to admin {admin_id}: {e}")
+#             except Exception as e:
+#                 print(f"Failed to generate Excel for {oy}: {e}")
+#                 for admin_id in ADMIN_CHAT_IDS:
+#                     try:
+#                         await context.bot.send_message(chat_id=admin_id, text=f"Excel fayl yaratishda xato: {oy}")
+#                     except Exception as e:
+#                         print(f"Failed to send error message to admin {admin_id}: {e}")
 
-# # --- START SERVER & BOT ---
+# async def run_bot():
+#     app_bot = Application.builder().token(BOT_TOKEN).build()
+#     app_bot.add_handler(CommandHandler("start", start))
+#     app_bot.add_handler(CallbackQueryHandler(handle_callback))
+#     app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
+#     print("✅ Bot ishga tushdi.")
+#     await app_bot.run_polling()
+
 # if __name__ == '__main__':
 #     import threading
 #     nest_asyncio.apply()
@@ -244,32 +266,34 @@ from telegram.ext import (
 
 app = Flask(__name__)
 DB_PATH = 'crm.db'
-
 BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
 ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027, 6449680789]
+
 
 def init_db():
     if not os.path.exists(DB_PATH):
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
         cur.execute('''
-        CREATE TABLE tolovlar (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ismi TEXT NOT NULL,
-            tolov INTEGER NOT NULL,
-            kurs TEXT NOT NULL,
-            oy TEXT NOT NULL,
-            izoh TEXT,
-            admin TEXT NOT NULL,
-            oqituvchi TEXT NOT NULL,
-            vaqt TEXT NOT NULL,
-            tolov_turi TEXT
-        )
+            CREATE TABLE tolovlar (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ismi TEXT NOT NULL,
+                tolov INTEGER NOT NULL,
+                kurs TEXT NOT NULL,
+                oy TEXT NOT NULL,
+                izoh TEXT,
+                admin TEXT NOT NULL,
+                oqituvchi TEXT NOT NULL,
+                vaqt TEXT NOT NULL,
+                tolov_turi TEXT
+            )
         ''')
         con.commit()
         con.close()
 
+
 init_db()
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -289,8 +313,7 @@ def index():
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
         cur.execute('''
-            INSERT INTO tolovlar
-            (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi)
+            INSERT INTO tolovlar (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi))
         con.commit()
@@ -334,8 +357,8 @@ def index():
     ''', (today,))
     tolovlar = cur.fetchall()
     con.close()
-
     return render_template('index.html', tolovlar=tolovlar)
+
 
 async def start(update: Update, context: CallbackContext):
     user_id = update.effective_chat.id
@@ -347,9 +370,9 @@ async def start(update: Update, context: CallbackContext):
         [InlineKeyboardButton("📅 Bugungi to‘lovlar", callback_data="today_report")],
         [InlineKeyboardButton("📊 Oylik to‘lovlar", callback_data="oylik_menyu")]
     ]
-
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Xush kelibsiz, admin! Tanlang:", reply_markup=reply_markup)
+
 
 async def handle_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -369,38 +392,67 @@ async def handle_callback(update: Update, context: CallbackContext):
         con.close()
 
         if not rows:
-            await query.edit_message_text(f"📅 *{today}* kuni hech qanday to‘lov yo‘q. Excel fayl yaratilmadi.", parse_mode="Markdown")
+            await query.edit_message_text(
+                f"📅 *{today}* kuni hech qanday to‘lov yo‘q. Excel fayl yaratilmadi.",
+                parse_mode="Markdown"
+            )
             return
 
         total_sum = sum(row[2] for row in rows)
-        await query.edit_message_text(f"📅 *{today}* kuni jami to‘lov: *{total_sum:,}* so‘m", parse_mode="Markdown")
+        await query.edit_message_text(
+            f"📅 *{today}* kuni jami to‘lov: *{total_sum:,}* so‘m",
+            parse_mode="Markdown"
+        )
 
-        df = pd.DataFrame(rows, columns=['id', 'ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi'])
+        df = pd.DataFrame(
+            rows,
+            columns=['id', 'ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi']
+        )
+
         os.makedirs("reports", exist_ok=True)
+
         for oy in df['oy'].unique():
-            oy_df = df[df['oy'] == oy].copy()  # Copy to avoid SettingWithCopyWarning
-            # Jami to'lov qatorini qo'shish
+            oy_df = df[df['oy'] == oy].copy()
+
+            # ✅ Yangi qator: Jami to‘lov
             jami_row = pd.DataFrame({
-                'id': [''], 'ismi': ['Jami to‘lov'], 'tolov': [oy_df['tolov'].sum()],
-                'kurs': [''], 'oy': [''], 'izoh': [''], 'admin': [''],
-                'oqituvchi': [''], 'vaqt': [''], 'tolov_turi': ['']
+                'id': [''],
+                'ismi': ['Jami to‘lov'],
+                'tolov': [oy_df['tolov'].sum()],
+                'kurs': [''],
+                'oy': [''],
+                'izoh': [''],
+                'admin': [''],
+                'oqituvchi': [''],
+                'vaqt': [''],
+                'tolov_turi': ['']
             })
             oy_df = pd.concat([oy_df, jami_row], ignore_index=True)
-            file_path = f"reports/hisobot_{today}_{oy}.xlsx"  # Timestamp olib tashlandi
+
+            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
+
             try:
                 oy_df.to_excel(file_path, index=False)
                 for admin_id in ADMIN_CHAT_IDS:
                     try:
                         with open(file_path, 'rb') as f:
-                            await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy.capitalize()} oyi - {today}")
+                            await context.bot.send_document(
+                                chat_id=admin_id,
+                                document=f,
+                                caption=f"{oy.capitalize()} oyi - {today}"
+                            )
                     except Exception as e:
                         print(f"Failed to send document to admin {admin_id}: {e}")
             except Exception as e:
                 print(f"Failed to generate Excel for {oy}: {e}")
-                await context.bot.send_message(chat_id=user_id, text=f"Excel fayl yaratishda xato: {oy}")
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"Excel fayl yaratishda xato: {oy}"
+                )
 
     elif query.data == "oylik_menyu":
-        oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"]
+        oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
+                 "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"]
         keyboard = [[InlineKeyboardButton(f"🗓 {oy}", callback_data=f"month_{oy.lower()}")] for oy in oylar]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Oy bo‘yicha hisobotni tanlang:", reply_markup=reply_markup)
@@ -418,7 +470,11 @@ async def handle_callback(update: Update, context: CallbackContext):
             return
 
         total_sum = sum(row[0] for row in rows)
-        await query.edit_message_text(f"🗓 *{oy_nomi.capitalize()}* oyi uchun jami to‘lov: *{total_sum:,}* so‘m", parse_mode="Markdown")
+        await query.edit_message_text(
+            f"🗓 *{oy_nomi.capitalize()}* oyi uchun jami to‘lov: *{total_sum:,}* so‘m",
+            parse_mode="Markdown"
+        )
+
 
 async def send_daily_report(context: CallbackContext):
     today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
@@ -435,38 +491,58 @@ async def send_daily_report(context: CallbackContext):
     else:
         os.makedirs("reports", exist_ok=True)
         for oy in df['oy'].unique():
-            oy_df = df[df['oy'] == oy].copy()  # Copy to avoid SettingWithCopyWarning
-            # Jami to'lov qatorini qo'shish
+            oy_df = df[df['oy'] == oy].copy()
+
+            # ✅ Yangi qator: Jami to‘lov
             jami_row = pd.DataFrame({
-                'id': [''], 'ismi': ['Jami to‘lov'], 'tolov': [oy_df['tolov'].sum()],
-                'kurs': [''], 'oy': [''], 'izoh': [''], 'admin': [''],
-                'oqituvchi': [''], 'vaqt': [''], 'tolov_turi': ['']
+                'id': [''],
+                'ismi': ['Jami to‘lov'],
+                'tolov': [oy_df['tolov'].sum()],
+                'kurs': [''],
+                'oy': [''],
+                'izoh': [''],
+                'admin': [''],
+                'oqituvchi': [''],
+                'vaqt': [''],
+                'tolov_turi': ['']
             })
             oy_df = pd.concat([oy_df, jami_row], ignore_index=True)
-            file_path = f"reports/hisobot_{today}_{oy}.xlsx"  # Timestamp olib tashlandi
+
+            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
+
             try:
                 oy_df.to_excel(file_path, index=False)
                 for admin_id in ADMIN_CHAT_IDS:
                     try:
                         with open(file_path, 'rb') as f:
-                            await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy.capitalize()} oyi - {today}")
+                            await context.bot.send_document(
+                                chat_id=admin_id,
+                                document=f,
+                                caption=f"{oy.capitalize()} oyi - {today}"
+                            )
                     except Exception as e:
                         print(f"Failed to send document to admin {admin_id}: {e}")
             except Exception as e:
                 print(f"Failed to generate Excel for {oy}: {e}")
                 for admin_id in ADMIN_CHAT_IDS:
                     try:
-                        await context.bot.send_message(chat_id=admin_id, text=f"Excel fayl yaratishda xato: {oy}")
+                        await context.bot.send_message(
+                            chat_id=admin_id,
+                            text=f"Excel fayl yaratishda xato: {oy}"
+                        )
                     except Exception as e:
                         print(f"Failed to send error message to admin {admin_id}: {e}")
+
 
 async def run_bot():
     app_bot = Application.builder().token(BOT_TOKEN).build()
     app_bot.add_handler(CommandHandler("start", start))
     app_bot.add_handler(CallbackQueryHandler(handle_callback))
     app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
+
     print("✅ Bot ishga tushdi.")
     await app_bot.run_polling()
+
 
 if __name__ == '__main__':
     import threading
