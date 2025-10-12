@@ -225,244 +225,153 @@
 
 import os
 import sqlite3
-from datetime import datetime, time, timedelta
 import pandas as pd
-import pytz
 import asyncio
-import nest_asyncio
-import threading
-import requests
-from flask import Flask, render_template, request, redirect, url_for, send_file
+import pytz
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
     CallbackContext,
-    CallbackQueryHandler,
 )
+from flask import Flask
+import nest_asyncio
 
-app = Flask(__name__)
-DB_PATH = 'crm.db'
+nest_asyncio.apply()
+
+# --- BOT SOZLAMALARI ---
 BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
 ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027, 6449680789]
+DB_PATH = 'crm.db'
+UZ_TZ = pytz.timezone('Asia/Tashkent')
+
+app = Flask(__name__)
 
 
-def init_db():
-    if not os.path.exists(DB_PATH):
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
-        cur.execute('''
-            CREATE TABLE tolovlar (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ismi TEXT NOT NULL,
-                tolov INTEGER NOT NULL,
-                kurs TEXT NOT NULL,
-                oy TEXT NOT NULL,
-                izoh TEXT,
-                admin TEXT NOT NULL,
-                oqituvchi TEXT NOT NULL,
-                vaqt TEXT NOT NULL,
-                tolov_turi TEXT
-            )
-        ''')
-        con.commit()
-        con.close()
-
-
-init_db()
-
-
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        ismi = request.form['ismi']
-        tolov = int(request.form['tolov'])
-        if tolov < 1000:
-            tolov *= 1000
-        kurs = request.form['kurs']
-        oy = request.form['oy']
-        izoh = request.form.get('izoh', '')
-        admin = request.form['admin']
-        oqituvchi = request.form['oqituvchi']
-        tolov_turi = request.form['tolov_turi']
-        vaqt = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d %H:%M:%S')
-
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
-        cur.execute('''
-            INSERT INTO tolovlar (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi))
-        con.commit()
-        con.close()
-
-        message = (
-            f"💳 *Yangi to‘lov kiritildi!*\n\n"
-            f"👤 Ismi: {ismi}\n"
-            f"💰 To‘lov: {tolov:,} so‘m\n"
-            f"📚 Kurs: {kurs} ({oy} oyi)\n"
-            f"💳 To‘lov turi: {tolov_turi}\n"
-            f"👨‍🏫 O‘qituvchi: {oqituvchi}\n"
-            f"🛠 Admin: {admin}\n"
-            f"💬 Izoh: {izoh or 'Yo‘q'}\n"
-            f"🕒 Sana: {vaqt}"
-        )
-
-        for admin_id in ADMIN_CHAT_IDS:
-            try:
-                requests.get(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    params={"chat_id": admin_id, "text": message, "parse_mode": "Markdown"}
-                )
-            except Exception as e:
-                print(f"Xabar yuborishda xatolik: {e}")
-
-        return redirect(url_for('index'))
-
-    today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
-    con = sqlite3.connect(DB_PATH)
-    cur = con.cursor()
-    cur.execute('''
-        SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
-        FROM tolovlar
-        WHERE date(vaqt) = ?
-        ORDER BY vaqt DESC
-    ''', (today,))
-    tolovlar = cur.fetchall()
-    con.close()
-
-    return render_template('index.html', tolovlar=tolovlar)
-
-
-def create_excel(filter_query, params, fayl_nomi):
-    con = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query(filter_query, con, params=params)
-    con.close()
+# --- DATABASE UCHUN FUNKSIYA ---
+def get_payments(filter_type="today"):
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM payments", conn)
+    conn.close()
 
     if df.empty:
-        print("Ma'lumot topilmadi.")
+        return pd.DataFrame()
+
+    df["date"] = pd.to_datetime(df["date"])
+    today = datetime.now(UZ_TZ).date()
+
+    if filter_type == "today":
+        df = df[df["date"].dt.date == today]
+    elif filter_type == "month":
+        df = df[df["date"].dt.month == today.month]
+
+    return df
+
+
+# --- EXCEL HISOBOT YARATISH ---
+def create_excel_report(df, report_type="today"):
+    if df.empty:
         return None
 
-    karta = df[df['tolov_turi'].str.lower().isin(['karta', 'click'])]['tolov'].sum()
-    naqd = df[df['tolov_turi'].str.lower() == 'naqd']['tolov'].sum()
-    jami = karta + naqd
+    today_str = datetime.now(UZ_TZ).strftime("%Y-%m-%d")
+    file_name = f"Tolovlar_{today_str if report_type == 'today' else 'Oylik'}.xlsx"
 
-    df.to_excel(fayl_nomi, index=False)
+    # To‘lov summalarini hisoblash
+    total_cash = df[df["type"] == "Naqd"]["amount"].sum()
+    total_card = df[df["type"] == "Karta"]["amount"].sum()
+    total_all = df["amount"].sum()
 
-    with pd.ExcelWriter(fayl_nomi, mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
+    # Excelga yozish
+    with pd.ExcelWriter(file_name, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='To‘lovlar')
         summary = pd.DataFrame({
-            'Ismi': ['💵 Jami to‘lovlar:'],
-            'tolov': [f"{jami:,} so‘m"],
-            'kurs': ['💳 Karta:'],
-            'oy': [f"{karta:,} so‘m"],
-            'izoh': ['💵 Naqd:'],
-            'admin': [f"{naqd:,} so‘m"]
+            'Hisobot': ['Naqd', 'Karta', 'Jami'],
+            'Miqdor': [total_cash, total_card, total_all]
         })
-        summary.to_excel(writer, index=False, header=False, startrow=len(df) + 3)
+        summary.to_excel(writer, index=False, sheet_name='Jami')
 
-    return fayl_nomi
+    return file_name
 
 
-def create_daily_excel():
-    tz = pytz.timezone('Asia/Tashkent')
-    today = datetime.now(tz).date().isoformat()
-    oy_nomi = datetime.now(tz).strftime("%B").capitalize()
-    sana = datetime.now(tz).strftime("%d_%m_%Y")
-    fayl_nomi = f"Tolovlar_{oy_nomi}_{sana}.xlsx"
-
-    fayl = create_excel("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", (today,), fayl_nomi)
-    if fayl:
+# --- BUGUNGI HISOBOT YUBORISH ---
+async def send_daily_report(application: Application):
+    df = get_payments("today")
+    if df.empty:
+        message = "Bugungi to‘lovlar mavjud emas."
         for admin_id in ADMIN_CHAT_IDS:
-            try:
-                requests.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument",
-                    data={"chat_id": admin_id},
-                    files={"document": open(fayl, "rb")}
-                )
-            except Exception as e:
-                print(f"Fayl yuborishda xatolik: {e}")
-        print(f"✅ {fayl} yuborildi.")
+            await application.bot.send_message(chat_id=admin_id, text=message)
+        return
+
+    file_path = create_excel_report(df, "today")
+    for admin_id in ADMIN_CHAT_IDS:
+        await application.bot.send_document(chat_id=admin_id, document=open(file_path, 'rb'),
+                                            caption=f"📅 Bugungi to‘lovlar ({datetime.now(UZ_TZ).strftime('%Y-%m-%d')})")
+    os.remove(file_path)
 
 
-async def schedule_daily_excel():
-    while True:
-        tz = pytz.timezone('Asia/Tashkent')
-        now = datetime.now(tz)
-        next_run = datetime.combine(now.date(), time(23, 59))
-        if now > next_run:
-            next_run += timedelta(days=1)
-        wait_seconds = (next_run - now).total_seconds()
-        print(f"⏰ Keyingi Excel {next_run.strftime('%H:%M')} da yaratiladi.")
-        await asyncio.sleep(wait_seconds)
-        create_daily_excel()
+# --- OYLIK HISOBOT YUBORISH ---
+async def send_monthly_report(application: Application):
+    df = get_payments("month")
+    if df.empty:
+        message = "Bu oy uchun to‘lovlar mavjud emas."
+        for admin_id in ADMIN_CHAT_IDS:
+            await application.bot.send_message(chat_id=admin_id, text=message)
+        return
+
+    file_path = create_excel_report(df, "month")
+    for admin_id in ADMIN_CHAT_IDS:
+        await application.bot.send_document(chat_id=admin_id, document=open(file_path, 'rb'),
+                                            caption=f"📊 Oylik to‘lovlar ({datetime.now(UZ_TZ).strftime('%B %Y')})")
+    os.remove(file_path)
 
 
-# ---------- TELEGRAM BOT ----------
-
+# --- /start BUYRUG‘I ---
 async def start(update: Update, context: CallbackContext):
-    user_id = update.effective_chat.id
-    if user_id not in ADMIN_CHAT_IDS:
-        await update.message.reply_text("Siz admin emassiz.")
+    df = get_payments("today")
+    if df.empty:
+        await update.message.reply_text("Bugungi to‘lovlar mavjud emas.")
         return
 
-    keyboard = [
-        [InlineKeyboardButton("📅 Bugungi to‘lovlar", callback_data="today_report")],
-        [InlineKeyboardButton("📊 Oylik hisobotlar", callback_data="oylik_hisobot")]
-    ]
-    await update.message.reply_text("Xush kelibsiz, admin! Tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
+    file_path = create_excel_report(df, "today")
+    await update.message.reply_document(open(file_path, 'rb'),
+                                        caption=f"📅 Bugungi to‘lovlar ({datetime.now(UZ_TZ).strftime('%Y-%m-%d')})")
+    os.remove(file_path)
 
 
-async def handle_callback(update: Update, context: CallbackContext):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.message.chat.id
-
-    if user_id not in ADMIN_CHAT_IDS:
-        await query.edit_message_text("Siz admin emassiz.")
+# --- /oylik BUYRUG‘I ---
+async def monthly(update: Update, context: CallbackContext):
+    df = get_payments("month")
+    if df.empty:
+        await update.message.reply_text("Bu oy uchun to‘lovlar mavjud emas.")
         return
 
-    if query.data == "today_report":
-        create_daily_excel()
-        await query.edit_message_text("✅ Bugungi to‘lovlar uchun Excel fayl yaratildi va yuborildi.")
-
-    elif query.data == "oylik_hisobot":
-        oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
-                 "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"]
-        keyboard = [[InlineKeyboardButton(f"🗓 {oy}", callback_data=f"month_{oy.lower()}")] for oy in oylar]
-        await query.edit_message_text("Oy bo‘yicha hisobotni tanlang:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-    elif query.data.startswith("month_"):
-        oy_nomi = query.data.replace("month_", "")
-        sana = datetime.now(pytz.timezone('Asia/Tashkent')).strftime("%Y")
-        fayl_nomi = f"Tolovlar_{oy_nomi.capitalize()}_{sana}.xlsx"
-
-        fayl = create_excel("SELECT * FROM tolovlar WHERE lower(oy)=lower(?)", (oy_nomi,), fayl_nomi)
-        if fayl:
-            for admin_id in ADMIN_CHAT_IDS:
-                try:
-                    requests.post(
-                        f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument",
-                        data={"chat_id": admin_id},
-                        files={"document": open(fayl, "rb")}
-                    )
-                except Exception as e:
-                    print(f"Fayl yuborishda xatolik: {e}")
-            await query.edit_message_text(f"✅ {oy_nomi.capitalize()} oyi uchun Excel fayl yuborildi.")
-        else:
-            await query.edit_message_text(f"⚠ {oy_nomi.capitalize()} oyi uchun ma'lumot topilmadi.")
+    file_path = create_excel_report(df, "month")
+    await update.message.reply_document(open(file_path, 'rb'),
+                                        caption=f"📊 Oylik to‘lovlar ({datetime.now(UZ_TZ).strftime('%B %Y')})")
+    os.remove(file_path)
 
 
-async def run_bot():
-    bot_app = Application.builder().token(BOT_TOKEN).build()
-    bot_app.add_handler(CommandHandler("start", start))
-    bot_app.add_handler(CallbackQueryHandler(handle_callback))
-    print("✅ Bot ishga tushdi.")
-    asyncio.create_task(schedule_daily_excel())
-    await bot_app.run_polling()
+# --- 23:59 DA AVTOMATIK HISOBOT ---
+async def scheduler(application: Application):
+    while True:
+        now = datetime.now(UZ_TZ)
+        if now.hour == 23 and now.minute == 59:
+            await send_daily_report(application)
+            await asyncio.sleep(70)
+        await asyncio.sleep(30)
 
 
-if __name__ == '__main__':
-    nest_asyncio.apply()
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000)).start()
-    asyncio.run(run_bot())
+# --- ASOSIY ISHLATISH ---
+async def main():
+    app_tg = Application.builder().token(BOT_TOKEN).build()
 
+    app_tg.add_handler(CommandHandler("start", start))
+    app_tg.add_handler(CommandHandler("oylik", monthly))
+
+    asyncio.create_task(scheduler(app_tg))
+    await app_tg.run_polling()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
