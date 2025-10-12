@@ -20,32 +20,6 @@ DB_PATH = 'crm.db'
 BOT_TOKEN = '7935396412:AAHJS61QJTdHtaf7pNrwtEqNdxZrWgapOR4'
 ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027, 6449680789]
 
-# --- EXCEL HISOBOT YARATISH ---
-def create_excel_report(df, report_type="today"):
-    if df.empty:
-        return None
-
-    today_str = datetime.now(UZ_TZ).strftime("%Y-%m-%d")
-    file_name = f"Tolovlar_{today_str if report_type == 'today' else 'Oylik'}.xlsx"
-
-    # To‘lov summalarini hisoblash
-    total_cash = df[df["type"] == "Naqd"]["amount"].sum()
-    total_card = df[df["type"] == "Karta"]["amount"].sum()
-    total_all = df["amount"].sum()
-
-    # Excelga yozish
-    with pd.ExcelWriter(file_name, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='To‘lovlar')
-        summary = pd.DataFrame({
-            'Hisobot': ['Naqd', 'Karta', 'Jami'],
-            'Miqdor': [total_cash, total_card, total_all]
-        })
-        summary.to_excel(writer, index=False, sheet_name='Jami')
-
-    return file_name
-
-
-
 def init_db():
     if not os.path.exists(DB_PATH):
         con = sqlite3.connect(DB_PATH)
