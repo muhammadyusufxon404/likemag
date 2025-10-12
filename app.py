@@ -366,13 +366,13 @@
 
 import os
 import sqlite3
-from datetime import datetime, time as dtime
+from datetime import datetime
 import pandas as pd
 import pytz
 import asyncio
 import nest_asyncio
 import requests
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, send_file
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -474,8 +474,26 @@ def index():
     ''', (today,))
     tolovlar = cur.fetchall()
     con.close()
+
     return render_template('index.html', tolovlar=tolovlar)
 
+
+@app.route('/download_excel')
+def download_excel():
+    """Barcha to‘lovlarni Excel faylga eksport qiladi"""
+    con = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("SELECT * FROM tolovlar ORDER BY vaqt DESC", con)
+    con.close()
+
+    if df.empty:
+        return "Bazadan ma'lumot topilmadi."
+
+    file_path = "tolovlar.xlsx"
+    df.to_excel(file_path, index=False)
+    return send_file(file_path, as_attachment=True)
+
+
+# ---------- TELEGRAM BOT QISMI ----------
 
 async def start(update: Update, context: CallbackContext):
     user_id = update.effective_chat.id
@@ -510,7 +528,7 @@ async def handle_callback(update: Update, context: CallbackContext):
 
         if not rows:
             await query.edit_message_text(
-                f"📅 *{today}* kuni hech qanday to‘lov yo‘q. Excel fayl yaratilmadi.",
+                f"📅 *{today}* kuni hech qanday to‘lov yo‘q.",
                 parse_mode="Markdown"
             )
             return
@@ -532,7 +550,6 @@ async def handle_callback(update: Update, context: CallbackContext):
         oy_nomi = query.data.replace("month_", "")
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
-        # ✅ To‘g‘rilangan joy:
         cur.execute("SELECT tolov FROM tolovlar WHERE lower(oy) = lower(?)", (oy_nomi,))
         rows = cur.fetchall()
         con.close()
