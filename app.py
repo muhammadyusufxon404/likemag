@@ -213,7 +213,6 @@
 #     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000)).start()
 #     asyncio.run(run_bot())
 
-
 import os
 import sqlite3
 from datetime import datetime
@@ -289,7 +288,7 @@ def index():
         message = (
             f"💳 *Yangi to‘lov kiritildi!*\n\n"
             f"👤 Ismi: {ismi}\n"
-            f"💰 To‘lov: {tolov} so‘m\n"
+            f"💰 To‘lov: {tolov:,} so‘m\n"
             f"📚 Kurs: {kurs} ({oy} oyi)\n"
             f"💳 To‘lov turi: {tolov_turi}\n"
             f"👨‍🏫 O‘qituvchi: {oqituvchi}\n"
@@ -330,14 +329,11 @@ def index():
 
 @app.route('/download_excel')
 def download_excel():
-    """Barcha to‘lovlarni Excel faylga eksport qiladi"""
     con = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query("SELECT * FROM tolovlar ORDER BY vaqt DESC", con)
     con.close()
-
     if df.empty:
         return "Bazadan ma'lumot topilmadi."
-
     file_path = "tolovlar.xlsx"
     df.to_excel(file_path, index=False)
     return send_file(file_path, as_attachment=True)
@@ -372,7 +368,7 @@ async def handle_callback(update: Update, context: CallbackContext):
         today = datetime.now(pytz.timezone('Asia/Tashkent')).date().isoformat()
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
-        cur.execute("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", (today,))
+        cur.execute("SELECT tolov_turi, SUM(tolov) FROM tolovlar WHERE DATE(vaqt) = ? GROUP BY tolov_turi", (today,))
         rows = cur.fetchall()
         con.close()
 
@@ -383,9 +379,15 @@ async def handle_callback(update: Update, context: CallbackContext):
             )
             return
 
-        total_sum = sum(row[2] for row in rows)
+        naqd = sum(row[1] for row in rows if row[0].lower() == "naqd")
+        karta = sum(row[1] for row in rows if row[0].lower() == "click" or row[0].lower() == "karta")
+        jami = naqd + karta
+
         await query.edit_message_text(
-            f"📅 *{today}* kuni jami to‘lov: *{total_sum:,}* so‘m",
+            f"🗓 *{today}* uchun to‘lovlar:\n\n"
+            f"💵 Naqd: {naqd:,} so‘m\n"
+            f"💳 Karta: {karta:,} so‘m\n"
+            f"📊 Jami: {jami:,} so‘m",
             parse_mode="Markdown"
         )
 
@@ -400,30 +402,25 @@ async def handle_callback(update: Update, context: CallbackContext):
         oy_nomi = query.data.replace("month_", "")
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
-
-        # 🔹 Click to‘lovlari
-        cur.execute("SELECT SUM(tolov) FROM tolovlar WHERE lower(oy)=lower(?) AND lower(tolov_turi)='click'", (oy_nomi,))
-        click_sum = cur.fetchone()[0] or 0
-
-        # 🔹 Naxt to‘lovlari
-        cur.execute("SELECT SUM(tolov) FROM tolovlar WHERE lower(oy)=lower(?) AND lower(tolov_turi)='naxt'", (oy_nomi,))
-        naxt_sum = cur.fetchone()[0] or 0
-
-        umumiy = click_sum + naxt_sum
+        cur.execute("SELECT tolov_turi, SUM(tolov) FROM tolovlar WHERE lower(oy) = lower(?) GROUP BY tolov_turi", (oy_nomi,))
+        rows = cur.fetchall()
         con.close()
 
-        if umumiy == 0:
-            await query.edit_message_text(f"{oy_nomi.capitalize()} oyi uchun to‘lovlar topilmadi.")
+        if not rows:
+            await query.edit_message_text(f"🗓 {oy_nomi.capitalize()} oyi uchun to‘lovlar topilmadi.")
             return
 
-        text = (
-            f"🗓 *{oy_nomi.capitalize()}* oyi uchun to‘lovlar:\n\n"
-            f"💳 Click: *{click_sum:,}* so‘m\n"
-            f"💵 Naxt: *{naxt_sum:,}* so‘m\n"
-            f"🟩 Umumiy: *{umumiy:,}* so‘m"
-        )
+        naqd = sum(row[1] for row in rows if row[0].lower() == "naqd")
+        karta = sum(row[1] for row in rows if row[0].lower() in ["click", "karta"])
+        jami = naqd + karta
 
-        await query.edit_message_text(text, parse_mode="Markdown")
+        await query.edit_message_text(
+            f"🗓 *{oy_nomi.capitalize()}* oyi uchun to‘lovlar:\n\n"
+            f"💵 Naqd: {naqd:,} so‘m\n"
+            f"💳 Karta: {karta:,} so‘m\n"
+            f"📊 Jami: {jami:,} so‘m",
+            parse_mode="Markdown"
+        )
 
 
 async def run_bot():
@@ -439,3 +436,4 @@ if __name__ == '__main__':
     nest_asyncio.apply()
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000)).start()
     asyncio.run(run_bot())
+
