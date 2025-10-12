@@ -1,12 +1,12 @@
 # import os
 # import sqlite3
-# from datetime import datetime, time as dtime
+# from datetime import datetime
 # import pandas as pd
 # import pytz
 # import asyncio
 # import nest_asyncio
 # import requests
-# from flask import Flask, render_template, request, redirect, url_for
+# from flask import Flask, render_template, request, redirect, url_for, send_file
 # from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 # from telegram.ext import (
 #     Application,
@@ -108,8 +108,26 @@
 #     ''', (today,))
 #     tolovlar = cur.fetchall()
 #     con.close()
+
 #     return render_template('index.html', tolovlar=tolovlar)
 
+
+# @app.route('/download_excel')
+# def download_excel():
+#     """Barcha to‘lovlarni Excel faylga eksport qiladi"""
+#     con = sqlite3.connect(DB_PATH)
+#     df = pd.read_sql_query("SELECT * FROM tolovlar ORDER BY vaqt DESC", con)
+#     con.close()
+
+#     if df.empty:
+#         return "Bazadan ma'lumot topilmadi."
+
+#     file_path = "tolovlar.xlsx"
+#     df.to_excel(file_path, index=False)
+#     return send_file(file_path, as_attachment=True)
+
+
+# # ---------- TELEGRAM BOT QISMI ----------
 
 # async def start(update: Update, context: CallbackContext):
 #     user_id = update.effective_chat.id
@@ -144,7 +162,7 @@
 
 #         if not rows:
 #             await query.edit_message_text(
-#                 f"📅 *{today}* kuni hech qanday to‘lov yo‘q. Excel fayl yaratilmadi.",
+#                 f"📅 *{today}* kuni hech qanday to‘lov yo‘q.",
 #                 parse_mode="Markdown"
 #             )
 #             return
@@ -154,83 +172,6 @@
 #             f"📅 *{today}* kuni jami to‘lov: *{total_sum:,}* so‘m",
 #             parse_mode="Markdown"
 #         )
-
-#         df = pd.DataFrame(
-#             rows,
-#             columns=['id', 'ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi']
-#         )
-
-#         os.makedirs("reports", exist_ok=True)
-
-#         for oy in df['oy'].unique():
-#             oy_df = df[df['oy'] == oy].copy()
-
-#             # ✅ Oxirida Jami, Naqd, Klik qo‘shish
-#             oy_df['tolov_turi'] = oy_df['tolov_turi'].astype(str).str.lower()
-
-#             jami_row = pd.DataFrame({
-#                 'id': [''],
-#                 'ismi': ['Jami to‘lov'],
-#                 'tolov': [oy_df['tolov'].sum()],
-#                 'kurs': [''],
-#                 'oy': [''],
-#                 'izoh': [''],
-#                 'admin': [''],
-#                 'oqituvchi': [''],
-#                 'vaqt': [''],
-#                 'tolov_turi': ['']
-#             })
-
-#             naqd_sum = oy_df.loc[oy_df['tolov_turi'] == 'naqd', 'tolov'].sum()
-#             klik_sum = oy_df.loc[oy_df['tolov_turi'].isin(['klik', 'click']), 'tolov'].sum()
-
-#             naqd_row = pd.DataFrame({
-#                 'id': [''],
-#                 'ismi': ['Naqd'],
-#                 'tolov': [naqd_sum],
-#                 'kurs': [''],
-#                 'oy': [''],
-#                 'izoh': [''],
-#                 'admin': [''],
-#                 'oqituvchi': [''],
-#                 'vaqt': [''],
-#                 'tolov_turi': ['']
-#             })
-#             klik_row = pd.DataFrame({
-#                 'id': [''],
-#                 'ismi': ['Klik'],
-#                 'tolov': [klik_sum],
-#                 'kurs': [''],
-#                 'oy': [''],
-#                 'izoh': [''],
-#                 'admin': [''],
-#                 'oqituvchi': [''],
-#                 'vaqt': [''],
-#                 'tolov_turi': ['']
-#             })
-
-#             oy_df = pd.concat([oy_df, jami_row, naqd_row, klik_row], ignore_index=True)
-
-#             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-
-#             try:
-#                 oy_df.to_excel(file_path, index=False)
-#                 for admin_id in ADMIN_CHAT_IDS:
-#                     try:
-#                         with open(file_path, 'rb') as f:
-#                             await context.bot.send_document(
-#                                 chat_id=admin_id,
-#                                 document=f,
-#                                 caption=f"{oy.capitalize()} oyi - {today}"
-#                             )
-#                     except Exception as e:
-#                         print(f"Failed to send document to admin {admin_id}: {e}")
-#             except Exception as e:
-#                 print(f"Failed to generate Excel for {oy}: {e}")
-#                 await context.bot.send_message(
-#                     chat_id=user_id,
-#                     text=f"Excel fayl yaratishda xato: {oy}"
-#                 )
 
 #     elif query.data == "oylik_menyu":
 #         oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
@@ -243,7 +184,7 @@
 #         oy_nomi = query.data.replace("month_", "")
 #         con = sqlite3.connect(DB_PATH)
 #         cur = con.cursor()
-#         cur.execute("SELECT tolov FROM tolovlar WHERE lower(oy) = ?", (oy_nomi,))
+#         cur.execute("SELECT tolov FROM tolovlar WHERE lower(oy) = lower(?)", (oy_nomi,))
 #         rows = cur.fetchall()
 #         con.close()
 
@@ -258,101 +199,10 @@
 #         )
 
 
-# async def send_daily_report(context: CallbackContext):
-#     today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
-#     con = sqlite3.connect(DB_PATH)
-#     df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", con, params=(today,))
-#     con.close()
-
-#     if df.empty:
-#         for admin_id in ADMIN_CHAT_IDS:
-#             try:
-#                 await context.bot.send_message(chat_id=admin_id, text=f"📅 {today} kuni hech qanday to‘lov bo‘lmadi.")
-#             except Exception as e:
-#                 print(f"Failed to send empty report message to admin {admin_id}: {e}")
-#     else:
-#         os.makedirs("reports", exist_ok=True)
-#         for oy in df['oy'].unique():
-#             oy_df = df[df['oy'] == oy].copy()
-
-#             # ✅ Oxirida Jami, Naqd, Klik qo‘shish
-#             oy_df['tolov_turi'] = oy_df['tolov_turi'].astype(str).str.lower()
-
-#             jami_row = pd.DataFrame({
-#                 'id': [''],
-#                 'ismi': ['Jami to‘lov'],
-#                 'tolov': [oy_df['tolov'].sum()],
-#                 'kurs': [''],
-#                 'oy': [''],
-#                 'izoh': [''],
-#                 'admin': [''],
-#                 'oqituvchi': [''],
-#                 'vaqt': [''],
-#                 'tolov_turi': ['']
-#             })
-
-#             naqd_sum = oy_df.loc[oy_df['tolov_turi'] == 'naqd', 'tolov'].sum()
-#             klik_sum = oy_df.loc[oy_df['tolov_turi'].isin(['klik', 'click']), 'tolov'].sum()
-
-#             naqd_row = pd.DataFrame({
-#                 'id': [''],
-#                 'ismi': ['Naqd'],
-#                 'tolov': [naqd_sum],
-#                 'kurs': [''],
-#                 'oy': [''],
-#                 'izoh': [''],
-#                 'admin': [''],
-#                 'oqituvchi': [''],
-#                 'vaqt': [''],
-#                 'tolov_turi': ['']
-#             })
-#             klik_row = pd.DataFrame({
-#                 'id': [''],
-#                 'ismi': ['Klik'],
-#                 'tolov': [klik_sum],
-#                 'kurs': [''],
-#                 'oy': [''],
-#                 'izoh': [''],
-#                 'admin': [''],
-#                 'oqituvchi': [''],
-#                 'vaqt': [''],
-#                 'tolov_turi': ['']
-#             })
-
-#             oy_df = pd.concat([oy_df, jami_row, naqd_row, klik_row], ignore_index=True)
-
-#             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-
-#             try:
-#                 oy_df.to_excel(file_path, index=False)
-#                 for admin_id in ADMIN_CHAT_IDS:
-#                     try:
-#                         with open(file_path, 'rb') as f:
-#                             await context.bot.send_document(
-#                                 chat_id=admin_id,
-#                                 document=f,
-#                                 caption=f"{oy.capitalize()} oyi - {today}"
-#                             )
-#                     except Exception as e:
-#                         print(f"Failed to send document to admin {admin_id}: {e}")
-#             except Exception as e:
-#                 print(f"Failed to generate Excel for {oy}: {e}")
-#                 for admin_id in ADMIN_CHAT_IDS:
-#                     try:
-#                         await context.bot.send_message(
-#                             chat_id=admin_id,
-#                             text=f"Excel fayl yaratishda xato: {oy}"
-#                         )
-#                     except Exception as e:
-#                         print(f"Failed to send error message to admin {admin_id}: {e}")
-
-
 # async def run_bot():
 #     app_bot = Application.builder().token(BOT_TOKEN).build()
 #     app_bot.add_handler(CommandHandler("start", start))
 #     app_bot.add_handler(CallbackQueryHandler(handle_callback))
-#     app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
-
 #     print("✅ Bot ishga tushdi.")
 #     await app_bot.run_polling()
 
@@ -550,19 +400,30 @@ async def handle_callback(update: Update, context: CallbackContext):
         oy_nomi = query.data.replace("month_", "")
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
-        cur.execute("SELECT tolov FROM tolovlar WHERE lower(oy) = lower(?)", (oy_nomi,))
-        rows = cur.fetchall()
+
+        # 🔹 Click to‘lovlari
+        cur.execute("SELECT SUM(tolov) FROM tolovlar WHERE lower(oy)=lower(?) AND lower(tolov_turi)='click'", (oy_nomi,))
+        click_sum = cur.fetchone()[0] or 0
+
+        # 🔹 Naxt to‘lovlari
+        cur.execute("SELECT SUM(tolov) FROM tolovlar WHERE lower(oy)=lower(?) AND lower(tolov_turi)='naxt'", (oy_nomi,))
+        naxt_sum = cur.fetchone()[0] or 0
+
+        umumiy = click_sum + naxt_sum
         con.close()
 
-        if not rows:
+        if umumiy == 0:
             await query.edit_message_text(f"{oy_nomi.capitalize()} oyi uchun to‘lovlar topilmadi.")
             return
 
-        total_sum = sum(row[0] for row in rows)
-        await query.edit_message_text(
-            f"🗓 *{oy_nomi.capitalize()}* oyi uchun jami to‘lov: *{total_sum:,}* so‘m",
-            parse_mode="Markdown"
+        text = (
+            f"🗓 *{oy_nomi.capitalize()}* oyi uchun to‘lovlar:\n\n"
+            f"💳 Click: *{click_sum:,}* so‘m\n"
+            f"💵 Naxt: *{naxt_sum:,}* so‘m\n"
+            f"🟩 Umumiy: *{umumiy:,}* so‘m"
         )
+
+        await query.edit_message_text(text, parse_mode="Markdown")
 
 
 async def run_bot():
