@@ -401,6 +401,8 @@ from telegram.ext import (
     CommandHandler,
     CallbackContext,
     CallbackQueryHandler,
+    MessageHandler,
+    filters,
 )
 
 app = Flask(__name__)
@@ -423,8 +425,14 @@ def init_db():
                 admin TEXT NOT NULL,
                 oqituvchi TEXT NOT NULL,
                 vaqt TEXT NOT NULL,
-                tolov_turi TEXT,
-                qoshimcha_summa INTEGER DEFAULT 0
+                tolov_turi TEXT
+            )
+        ''')
+        cur.execute('''
+            CREATE TABLE qoshimcha_summa (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                oy TEXT NOT NULL,
+                summa INTEGER NOT NULL
             )
         ''')
         con.commit()
@@ -432,6 +440,7 @@ def init_db():
 
 init_db()
 
+# --- Flask qismi ---
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -445,15 +454,14 @@ def index():
         admin = request.form['admin']
         oqituvchi = request.form['oqituvchi']
         tolov_turi = request.form['tolov_turi']
-        qoshimcha_summa = int(request.form.get('qoshimcha_summa', 0))
         vaqt = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d %H:%M:%S')
 
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
         cur.execute('''
-            INSERT INTO tolovlar (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi, qoshimcha_summa)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi, qoshimcha_summa))
+            INSERT INTO tolovlar (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi))
         con.commit()
         con.close()
 
@@ -463,7 +471,6 @@ def index():
             f"💰 To‘lov: {tolov} so‘m\n"
             f"📚 Kurs: {kurs} ({oy} oyi)\n"
             f"💳 To‘lov turi: {tolov_turi}\n"
-            f"➕ Qo‘shimcha summa: {qoshimcha_summa} so‘m\n"
             f"👨‍🏫 O‘qituvchi: {oqituvchi}\n"
             f"🛠 Admin: {admin}\n"
             f"💬 Izoh: {izoh or 'Yo‘q'}\n"
@@ -489,7 +496,7 @@ def index():
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
     cur.execute('''
-        SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi, qoshimcha_summa
+        SELECT ismi, tolov, kurs, oy, izoh, admin, oqituvchi, vaqt, tolov_turi
         FROM tolovlar
         WHERE date(vaqt) = ?
         ORDER BY vaqt DESC
@@ -498,6 +505,8 @@ def index():
     con.close()
     return render_template('index.html', tolovlar=tolovlar)
 
+# --- Telegram qismi ---
+user_state = {}  # qo‘shimcha summa kirita olish uchun
 
 async def start(update: Update, context: CallbackContext):
     user_id = update.effective_chat.id
@@ -507,11 +516,11 @@ async def start(update: Update, context: CallbackContext):
 
     keyboard = [
         [InlineKeyboardButton("📅 Bugungi to‘lovlar", callback_data="today_report")],
-        [InlineKeyboardButton("📊 Oylik to‘lovlar", callback_data="oylik_menyu")]
+        [InlineKeyboardButton("📊 Oylik to‘lovlar", callback_data="oylik_menyu")],
+        [InlineKeyboardButton("➕ Qo‘shimcha summa", callback_data="add_extra")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Xush kelibsiz, admin! Tanlang:", reply_markup=reply_markup)
-
 
 async def handle_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -537,51 +546,11 @@ async def handle_callback(update: Update, context: CallbackContext):
             )
             return
 
-        total_sum = sum(row[2] for row in rows) + sum(row[10] for row in rows)  # Qo'shimcha summa qo'shildi
+        total_sum = sum(row[2] for row in rows)
         await query.edit_message_text(
             f"📅 *{today}* kuni jami to‘lov: *{total_sum:,}* so‘m",
             parse_mode="Markdown"
         )
-
-        df = pd.DataFrame(
-            rows,
-            columns=['id', 'ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi', 'qoshimcha_summa']
-        )
-
-        os.makedirs("reports", exist_ok=True)
-
-        for oy in df['oy'].unique():
-            oy_df = df[df['oy'] == oy].copy()
-            oy_df['tolov_turi'] = oy_df['tolov_turi'].astype(str).str.lower()
-
-            # Oxirida Jami, Naqd, Klik, Qo'shimcha
-            jami_row = pd.DataFrame({'id':[''],'ismi':['Jami to‘lov'],'tolov':[oy_df['tolov'].sum() + oy_df['qoshimcha_summa'].sum()],
-                                     'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':[''],'qoshimcha_summa':['']})
-            naqd_row = pd.DataFrame({'id':[''],'ismi':['Naqd'],'tolov':[oy_df.loc[oy_df['tolov_turi']=='naqd','tolov'].sum()],
-                                     'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':[''],'qoshimcha_summa':['']})
-            karta_row = pd.DataFrame({'id':[''],'ismi':['Karta'],'tolov':[oy_df.loc[oy_df['tolov_turi'].isin(['klik','click','karta','card']),'tolov'].sum()],
-                                      'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':[''],'qoshimcha_summa':['']})
-            qoshimcha_row = pd.DataFrame({'id':[''],'ismi':['Qo‘shimcha summa'],'tolov':[oy_df['qoshimcha_summa'].sum()],
-                                          'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':[''],'qoshimcha_summa':['']})
-
-            oy_df = pd.concat([oy_df, jami_row, naqd_row, karta_row, qoshimcha_row], ignore_index=True)
-
-            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-            try:
-                oy_df.to_excel(file_path, index=False)
-                for admin_id in ADMIN_CHAT_IDS:
-                    try:
-                        with open(file_path, 'rb') as f:
-                            await context.bot.send_document(
-                                chat_id=admin_id,
-                                document=f,
-                                caption=f"{oy.capitalize()} oyi - {today}"
-                            )
-                    except Exception as e:
-                        print(f"Failed to send document to admin {admin_id}: {e}")
-            except Exception as e:
-                print(f"Failed to generate Excel for {oy}: {e}")
-                await context.bot.send_message(chat_id=user_id, text=f"Excel fayl yaratishda xato: {oy}")
 
     elif query.data == "oylik_menyu":
         oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
@@ -594,85 +563,86 @@ async def handle_callback(update: Update, context: CallbackContext):
         oy_nomi = query.data.replace("month_", "")
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
-        cur.execute("SELECT tolov, tolov_turi, COALESCE(qoshimcha_summa,0) FROM tolovlar WHERE lower(oy)=?", (oy_nomi,))
+        cur.execute("SELECT tolov, tolov_turi FROM tolovlar WHERE lower(oy) = ?", (oy_nomi,))
         rows = cur.fetchall()
+        cur.execute("SELECT summa FROM qoshimcha_summa WHERE lower(oy)=?", (oy_nomi,))
+        extra = cur.fetchone()
         con.close()
 
-        if not rows:
+        qoshimcha = extra[0] if extra else 0
+
+        if not rows and qoshimcha==0:
             await query.edit_message_text(f"{oy_nomi.capitalize()} oyi uchun to‘lovlar topilmadi.")
             return
 
+        jami_sum = sum(row[0] for row in rows) + qoshimcha
         naqd_sum = sum(row[0] for row in rows if str(row[1]).lower() == "naqd")
-        karta_sum = sum(row[0] for row in rows if str(row[1]).lower() in ["klik","click","karta","card"])
-        qoshimcha_sum = sum(row[2] for row in rows)
-        jami_sum = naqd_sum + karta_sum + qoshimcha_sum
+        karta_sum = sum(row[0] for row in rows if str(row[1]).lower() in ["klik", "click", "karta", "card"])
 
         text = (
             f"🗓 *{oy_nomi.capitalize()}* oyi uchun to‘lovlar:\n\n"
             f"💵 Naqd: {naqd_sum:,} so‘m\n"
             f"💳 Karta: {karta_sum:,} so‘m\n"
-            f"➕ Qo‘shimcha summa: {qoshimcha_sum:,} so‘m\n"
+            f"➕ Qo‘shimcha summa: {qoshimcha:,} so‘m\n"
             f"📊 Jami: {jami_sum:,} so‘m"
         )
         await query.edit_message_text(text, parse_mode="Markdown")
 
+    elif query.data == "add_extra":
+        oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
+                 "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"]
+        keyboard = [[InlineKeyboardButton(f"🗓 {oy}", callback_data=f"extra_{oy.lower()}")] for oy in oylar]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text("Qo‘shimcha summa kiritiladigan oyni tanlang:", reply_markup=reply_markup)
+
+    elif query.data.startswith("extra_"):
+        oy_nomi = query.data.replace("extra_", "")
+        user_state[user_id] = {'oy': oy_nomi, 'awaiting': True}
+        await query.message.reply_text(f"{oy_nomi.capitalize()} oyi uchun qo‘shimcha summani kiriting:")
+
+async def handle_message(update: Update, context: CallbackContext):
+    user_id = update.message.chat.id
+    if user_id in user_state and user_state[user_id].get('awaiting'):
+        try:
+            summa = int(update.message.text.replace(',', '').strip())
+        except:
+            await update.message.reply_text("Iltimos, faqat raqam kiriting.")
+            return
+
+        oy = user_state[user_id]['oy']
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute("SELECT id FROM qoshimcha_summa WHERE lower(oy)=?", (oy,))
+        exist = cur.fetchone()
+        if exist:
+            cur.execute("UPDATE qoshimcha_summa SET summa=? WHERE id=?", (summa, exist[0]))
+        else:
+            cur.execute("INSERT INTO qoshimcha_summa (oy, summa) VALUES (?, ?)", (oy, summa))
+        con.commit()
+        con.close()
+        await update.message.reply_text(f"{oy.capitalize()} oyi uchun qo‘shimcha summa saqlandi: {summa:,} so‘m")
+        user_state[user_id]['awaiting'] = False
+
+async def run_bot():
+    app_bot = Application.builder().token(BOT_TOKEN).build()
+    app_bot.add_handler(CommandHandler("start", start))
+    app_bot.add_handler(CallbackQueryHandler(handle_callback))
+    app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
+    print("✅ Bot ishga tushdi.")
+    await app_bot.run_polling()
 
 async def send_daily_report(context: CallbackContext):
     today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
     con = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt)=?", con, params=(today,))
+    df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", con, params=(today,))
     con.close()
-
     if df.empty:
         for admin_id in ADMIN_CHAT_IDS:
             try:
                 await context.bot.send_message(chat_id=admin_id, text=f"📅 {today} kuni hech qanday to‘lov bo‘lmadi.")
             except Exception as e:
                 print(f"Failed to send empty report message to admin {admin_id}: {e}")
-    else:
-        os.makedirs("reports", exist_ok=True)
-        for oy in df['oy'].unique():
-            oy_df = df[df['oy']==oy].copy()
-            oy_df['tolov_turi'] = oy_df['tolov_turi'].astype(str).str.lower()
-
-            jami_row = pd.DataFrame({'id':[''],'ismi':['Jami to‘lov'],'tolov':[oy_df['tolov'].sum() + oy_df['qoshimcha_summa'].sum()],
-                                     'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':[''],'qoshimcha_summa':['']})
-            naqd_row = pd.DataFrame({'id':[''],'ismi':['Naqd'],'tolov':[oy_df.loc[oy_df['tolov_turi']=='naqd','tolov'].sum()],
-                                     'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':[''],'qoshimcha_summa':['']})
-            karta_row = pd.DataFrame({'id':[''],'ismi':['Karta'],'tolov':[oy_df.loc[oy_df['tolov_turi'].isin(['klik','click','karta','card']),'tolov'].sum()],
-                                      'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':[''],'qoshimcha_summa':['']})
-            qoshimcha_row = pd.DataFrame({'id':[''],'ismi':['Qo‘shimcha summa'],'tolov':[oy_df['qoshimcha_summa'].sum()],
-                                          'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':[''],'qoshimcha_summa':['']})
-
-            oy_df = pd.concat([oy_df, jami_row, naqd_row, karta_row, qoshimcha_row], ignore_index=True)
-
-            file_path = f"reports/hisobot_{today}_{oy}.xlsx"
-            try:
-                oy_df.to_excel(file_path, index=False)
-                for admin_id in ADMIN_CHAT_IDS:
-                    try:
-                        with open(file_path, 'rb') as f:
-                            await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy.capitalize()} oyi - {today}")
-                    except Exception as e:
-                        print(f"Failed to send document to admin {admin_id}: {e}")
-            except Exception as e:
-                print(f"Failed to generate Excel for {oy}: {e}")
-                for admin_id in ADMIN_CHAT_IDS:
-                    try:
-                        await context.bot.send_message(chat_id=admin_id, text=f"Excel fayl yaratishda xato: {oy}")
-                    except Exception as e:
-                        print(f"Failed to send error message to admin {admin_id}: {e}")
-
-
-async def run_bot():
-    app_bot = Application.builder().token(BOT_TOKEN).build()
-    app_bot.add_handler(CommandHandler("start", start))
-    app_bot.add_handler(CallbackQueryHandler(handle_callback))
-    app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
-
-    print("✅ Bot ishga tushdi.")
-    await app_bot.run_polling()
-
 
 if __name__ == '__main__':
     import threading
