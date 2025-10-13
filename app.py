@@ -402,7 +402,7 @@ from telegram.ext import Application, CommandHandler, CallbackContext, CallbackQ
 
 app = Flask(__name__)
 DB_PATH = 'crm.db'
-BOT_TOKEN = 'YOUR_BOT_TOKEN'
+BOT_TOKEN = '7935396412:AAFhVBQ1NNmw-giNGacreQkS71bsFlZAmM8'
 
 # Super admin va oddiy adminlarni alohida saqlaymiz
 SUPER_ADMIN_IDS = [6855997739]  # faqat super admin
