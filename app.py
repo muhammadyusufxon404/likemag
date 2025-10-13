@@ -19,55 +19,6 @@ app = Flask(__name__)
 DB_PATH = 'crm.db'
 BOT_TOKEN = '7935396412:AAFhVBQ1NNmw-giNGacreQkS71bsFlZAmM8'
 ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027, 1725877539]
-# Super admin ID (xuddi adminlar bilan birga)
-SUPER_ADMIN_CHAT_ID = 6855997739
-
-# Super admin uchun xabarni qayta ishlash
-async def super_admin_message_handler(update: Update, context: CallbackContext):
-    user_id = update.effective_chat.id
-
-    # Agar foydalanuvchi super admin bo'lmasa, chiq
-    if user_id != SUPER_ADMIN_CHAT_ID:
-        return
-
-    # Agar super admin oyni tanlagan bo'lsa va summa kiritilsa
-    if context.user_data.get("awaiting_sum"):
-        oy = context.user_data.get("selected_month")
-        if oy is None:
-            await update.message.reply_text("❌ Oy tanlanmadi.")
-            context.user_data["awaiting_sum"] = False
-            return
-
-        try:
-            new_total = int(update.message.text.replace(',', ''))
-            con = sqlite3.connect(DB_PATH)
-            cur = con.cursor()
-            cur.execute("SELECT id, tolov FROM tolovlar WHERE lower(oy) = ?", (oy,))
-            rows = cur.fetchall()
-
-            if not rows:
-                await update.message.reply_text(f"❌ {oy.capitalize()} oyi uchun to‘lovlar topilmadi.")
-                con.close()
-                context.user_data["awaiting_sum"] = False
-                context.user_data["selected_month"] = None
-                return
-
-            # Har bir yozuvga teng taqsimlash
-            old_sum = sum(r[1] for r in rows)
-            diff = new_total - old_sum
-            for r in rows:
-                new_val = r[1] + int(diff / len(rows))
-                cur.execute("UPDATE tolovlar SET tolov = ? WHERE id = ?", (new_val, r[0]))
-
-            con.commit()
-            con.close()
-            await update.message.reply_text(f"✅ {oy.capitalize()} oyi uchun jami summa yangilandi: {new_total:,} so‘m")
-        except Exception as e:
-            await update.message.reply_text(f"❌ Xato: {e}")
-        finally:
-            context.user_data["awaiting_sum"] = False
-            context.user_data["selected_month"] = None
-#
 
 def init_db():
     if not os.path.exists(DB_PATH):
@@ -419,20 +370,6 @@ async def send_daily_report(context: CallbackContext):
                         )
                     except Exception as e:
                         print(f"Failed to send error message to admin {admin_id}: {e}")
-    #
-      elif query.data == "super_admin_menu" and user_id == SUPER_ADMIN_CHAT_ID:
-    oylar = ["Yanvar","Fevral","Mart","Aprel","May","Iyun",
-             "Iyul","Avgust","Sentyabr","Oktyabr","Noyabr","Dekabr"]
-    keyboard = [[InlineKeyboardButton(oy, callback_data=f"set_month_{oy.lower()}")] for oy in oylar]
-    await query.edit_message_text("🗓 Qaysi oy uchun summani o‘zgartirmoqchisiz?", reply_markup=InlineKeyboardMarkup(keyboard))
-elif query.data.startswith("set_month_") and user_id == SUPER_ADMIN_CHAT_ID:
-    oy_nomi = query.data.replace("set_month_", "")
-    context.user_data["selected_month"] = oy_nomi
-    context.user_data["awaiting_sum"] = True
-    await query.edit_message_text(f"✏️ {oy_nomi.capitalize()} oyi uchun yangi jami summani kiriting (so‘mda):")
-
-
-#
 
 async def run_bot():
     app_bot = Application.builder().token(BOT_TOKEN).build()
