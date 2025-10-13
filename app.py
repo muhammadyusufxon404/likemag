@@ -395,7 +395,7 @@ import asyncio
 import nest_asyncio
 import requests
 from flask import Flask, render_template, request, redirect, url_for
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -410,6 +410,7 @@ DB_PATH = 'crm.db'
 BOT_TOKEN = '7935396412:AAFhVBQ1NNmw-giNGacreQkS71bsFlZAmM8'
 ADMIN_CHAT_IDS = [6855997739, 266123144, 1657599027, 1725877539]
 
+# --- DB Init ---
 def init_db():
     if not os.path.exists(DB_PATH):
         con = sqlite3.connect(DB_PATH)
@@ -437,7 +438,6 @@ def init_db():
         ''')
         con.commit()
         con.close()
-
 init_db()
 
 # --- Flask qismi ---
@@ -506,14 +506,13 @@ def index():
     return render_template('index.html', tolovlar=tolovlar)
 
 # --- Telegram qismi ---
-user_state = {}  # qo‘shimcha summa kirita olish uchun
+user_state = {}
 
 async def start(update: Update, context: CallbackContext):
     user_id = update.effective_chat.id
     if user_id not in ADMIN_CHAT_IDS:
         await update.message.reply_text("Siz admin emassiz.")
         return
-
     keyboard = [
         [InlineKeyboardButton("📅 Bugungi to‘lovlar", callback_data="today_report")],
         [InlineKeyboardButton("📊 Oylik to‘lovlar", callback_data="oylik_menyu")],
@@ -521,6 +520,11 @@ async def start(update: Update, context: CallbackContext):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Xush kelibsiz, admin! Tanlang:", reply_markup=reply_markup)
+
+async def create_excel(rows, filename):
+    df = pd.DataFrame(rows, columns=['ID','Ismi','To‘lov','Kurs','Oy','Izoh','Admin','Oqituvchi','Vaqt','Tolov turi'])
+    os.makedirs("reports", exist_ok=True)
+    df.to_excel(os.path.join("reports", filename), index=False)
 
 async def handle_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -531,38 +535,41 @@ async def handle_callback(update: Update, context: CallbackContext):
         await query.edit_message_text("Siz admin emassiz.")
         return
 
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+
     if query.data == "today_report":
         today = datetime.now(pytz.timezone('Asia/Tashkent')).date().isoformat()
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
         cur.execute("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", (today,))
         rows = cur.fetchall()
-        con.close()
 
         if not rows:
-            await query.edit_message_text(
-                f"📅 *{today}* kuni hech qanday to‘lov yo‘q. Excel fayl yaratilmadi.",
-                parse_mode="Markdown"
-            )
+            await query.edit_message_text(f"📅 *{today}* kuni hech qanday to‘lov yo‘q.", parse_mode="Markdown")
             return
 
-        total_sum = sum(row[2] for row in rows)
-        await query.edit_message_text(
-            f"📅 *{today}* kuni jami to‘lov: *{total_sum:,}* so‘m",
-            parse_mode="Markdown"
-        )
+        oy_dict = {}
+        for row in rows:
+            oy = row[4].capitalize()
+            if oy not in oy_dict:
+                oy_dict[oy] = []
+            oy_dict[oy].append(row)
+        
+        for oy, oy_rows in oy_dict.items():
+            filename = f"{oy}_{today}.xlsx"
+            await create_excel(oy_rows, filename)
+            with open(os.path.join("reports", filename), "rb") as f:
+                await context.bot.send_document(chat_id=user_id, document=InputFile(f, filename))
+        
+        await query.edit_message_text(f"📅 Bugungi to‘lovlar Excel fayl tarzida yuborildi.")
 
     elif query.data == "oylik_menyu":
-        oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
-                 "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"]
+        oylar = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentyabr","Oktyabr","Noyabr","Dekabr"]
         keyboard = [[InlineKeyboardButton(f"🗓 {oy}", callback_data=f"month_{oy.lower()}")] for oy in oylar]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Oy bo‘yicha hisobotni tanlang:", reply_markup=reply_markup)
 
     elif query.data.startswith("month_"):
         oy_nomi = query.data.replace("month_", "")
-        con = sqlite3.connect(DB_PATH)
-        cur = con.cursor()
         cur.execute("SELECT tolov, tolov_turi FROM tolovlar WHERE lower(oy) = ?", (oy_nomi,))
         rows = cur.fetchall()
         cur.execute("SELECT summa FROM qoshimcha_summa WHERE lower(oy)=?", (oy_nomi,))
@@ -588,9 +595,19 @@ async def handle_callback(update: Update, context: CallbackContext):
         )
         await query.edit_message_text(text, parse_mode="Markdown")
 
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute("SELECT * FROM tolovlar WHERE lower(oy)=?", (oy_nomi,))
+        oy_rows = cur.fetchall()
+        con.close()
+        if oy_rows:
+            filename = f"{oy_nomi}_tolovlar.xlsx"
+            await create_excel(oy_rows, filename)
+            with open(os.path.join("reports", filename), "rb") as f:
+                await context.bot.send_document(chat_id=user_id, document=InputFile(f, filename))
+
     elif query.data == "add_extra":
-        oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
-                 "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"]
+        oylar = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentyabr","Oktyabr","Noyabr","Dekabr"]
         keyboard = [[InlineKeyboardButton(f"🗓 {oy}", callback_data=f"extra_{oy.lower()}")] for oy in oylar]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Qo‘shimcha summa kiritiladigan oyni tanlang:", reply_markup=reply_markup)
@@ -628,21 +645,8 @@ async def run_bot():
     app_bot.add_handler(CommandHandler("start", start))
     app_bot.add_handler(CallbackQueryHandler(handle_callback))
     app_bot.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
     print("✅ Bot ishga tushdi.")
     await app_bot.run_polling()
-
-async def send_daily_report(context: CallbackContext):
-    today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
-    con = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", con, params=(today,))
-    con.close()
-    if df.empty:
-        for admin_id in ADMIN_CHAT_IDS:
-            try:
-                await context.bot.send_message(chat_id=admin_id, text=f"📅 {today} kuni hech qanday to‘lov bo‘lmadi.")
-            except Exception as e:
-                print(f"Failed to send empty report message to admin {admin_id}: {e}")
 
 if __name__ == '__main__':
     import threading
