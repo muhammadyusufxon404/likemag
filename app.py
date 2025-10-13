@@ -387,7 +387,6 @@
 #     nest_asyncio.apply()
 #     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000)).start()
 #     asyncio.run(run_bot())
-
 import os
 import sqlite3
 from datetime import datetime, time as dtime
@@ -409,11 +408,9 @@ app = Flask(__name__)
 DB_PATH = 'crm.db'
 BOT_TOKEN = '7935396412:AAFhVBQ1NNmw-giNGacreQkS71bsFlZAmM8'
 
-# Super admin va oddiy adminlarni alohida saqlaymiz
-SUPER_ADMIN_IDS = [6855997739]  # faqat super admin
-ORDINARY_ADMIN_IDS = [266123144, 1657599027, 6449680789]  # oddiy adminlar
+SUPER_ADMIN_IDS = [6855997739]
+ORDINARY_ADMIN_IDS = [266123144, 1657599027, 6449680789]
 ALL_ADMINS = SUPER_ADMIN_IDS + ORDINARY_ADMIN_IDS
-
 
 def init_db():
     if not os.path.exists(DB_PATH):
@@ -436,9 +433,7 @@ def init_db():
         con.commit()
         con.close()
 
-
 init_db()
-
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -476,16 +471,11 @@ def index():
             f"🕒 Sana: {vaqt}"
         )
 
-        # Faylni emas, faqat matn xabarini hamma adminlarga yuboradi
         for admin_id in ALL_ADMINS:
             try:
                 requests.get(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    params={
-                        "chat_id": admin_id,
-                        "text": message,
-                        "parse_mode": "Markdown"
-                    }
+                    params={"chat_id": admin_id, "text": message, "parse_mode": "Markdown"}
                 )
             except Exception as e:
                 print(f"Xabar yuborishda xatolik: {e}")
@@ -516,8 +506,6 @@ async def start(update: Update, context: CallbackContext):
         [InlineKeyboardButton("📅 Bugungi to‘lovlar", callback_data="today_report")],
         [InlineKeyboardButton("📊 Oylik to‘lovlar", callback_data="oylik_menyu")]
     ]
-
-    # Faqat super adminga qo‘shimcha tugmalar
     if user_id in SUPER_ADMIN_IDS:
         keyboard.append([InlineKeyboardButton("⚙️ Super admin panel", callback_data="super_admin")])
 
@@ -529,13 +517,13 @@ async def handle_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
     user_id = query.message.chat.id
-
     if user_id not in ALL_ADMINS:
         await query.edit_message_text("Siz admin emassiz.")
         return
 
     today = datetime.now(pytz.timezone('Asia/Tashkent')).date().isoformat()
 
+    # Bugungi tolovlar
     if query.data == "today_report":
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
@@ -544,82 +532,52 @@ async def handle_callback(update: Update, context: CallbackContext):
         con.close()
 
         if not rows:
-            await query.edit_message_text(
-                f"📅 *{today}* kuni hech qanday to‘lov yo‘q.",
-                parse_mode="Markdown"
-            )
+            await query.edit_message_text(f"📅 *{today}* kuni hech qanday to‘lov yo‘q.", parse_mode="Markdown")
             return
 
-        # Excel fayl yaratish va barcha adminlarga yuborish
-        df = pd.DataFrame(
-            rows,
-            columns=['id', 'ismi', 'tolov', 'kurs', 'oy', 'izoh', 'admin', 'oqituvchi', 'vaqt', 'tolov_turi']
-        )
-
+        df = pd.DataFrame(rows, columns=['id','ismi','tolov','kurs','oy','izoh','admin','oqituvchi','vaqt','tolov_turi'])
         os.makedirs("reports", exist_ok=True)
 
         for oy in df['oy'].unique():
-            oy_df = df[df['oy'] == oy].copy()
+            oy_df = df[df['oy']==oy].copy()
             oy_df['tolov_turi'] = oy_df['tolov_turi'].astype(str).str.lower()
 
-            # Jami, Naqd, Klik qo‘shish
-            jami_row = pd.DataFrame({
-                'id': [''],
-                'ismi': ['Jami to‘lov'],
-                'tolov': [oy_df['tolov'].sum()],
-                'kurs': [''],
-                'oy': [''],
-                'izoh': [''],
-                'admin': [''],
-                'oqituvchi': [''],
-                'vaqt': [''],
-                'tolov_turi': ['']
-            })
-            naqd_row = pd.DataFrame({
-                'id': [''],
-                'ismi': ['Naqd'],
-                'tolov': [oy_df.loc[oy_df['tolov_turi'] == 'naqd', 'tolov'].sum()],
-                'kurs': [''], 'oy': [''], 'izoh': [''], 'admin': [''], 'oqituvchi': [''], 'vaqt': [''], 'tolov_turi': ['']
-            })
-            klik_row = pd.DataFrame({
-                'id': [''],
-                'ismi': ['Klik'],
-                'tolov': [oy_df.loc[oy_df['tolov_turi'].isin(['klik','click']), 'tolov'].sum()],
-                'kurs': [''], 'oy': [''], 'izoh': [''], 'admin': [''], 'oqituvchi': [''], 'vaqt': [''], 'tolov_turi': ['']
-            })
-
-            oy_df = pd.concat([oy_df, jami_row, naqd_row, klik_row], ignore_index=True)
+            jami_row = pd.DataFrame({'id':[''], 'ismi':['Jami to‘lov'], 'tolov':[oy_df['tolov'].sum()],
+                                     'kurs':[''], 'oy':[''], 'izoh':[''], 'admin':[''], 'oqituvchi':[''], 'vaqt':[''], 'tolov_turi':['']})
+            naqd_row = pd.DataFrame({'id':[''], 'ismi':['Naqd'], 'tolov':[oy_df.loc[oy_df['tolov_turi']=='naqd','tolov'].sum()],
+                                     'kurs':[''], 'oy':[''], 'izoh':[''], 'admin':[''], 'oqituvchi':[''], 'vaqt':[''], 'tolov_turi':['']})
+            klik_row = pd.DataFrame({'id':[''], 'ismi':['Klik'], 'tolov':[oy_df.loc[oy_df['tolov_turi'].isin(['klik','click']),'tolov'].sum()],
+                                     'kurs':[''], 'oy':[''], 'izoh':[''], 'admin':[''], 'oqituvchi':[''], 'vaqt':[''], 'tolov_turi':['']})
+            oy_df = pd.concat([oy_df,jami_row,naqd_row,klik_row], ignore_index=True)
 
             file_path = f"reports/hisobot_{today}_{oy}.xlsx"
             oy_df.to_excel(file_path, index=False)
 
-            # Excel faylni barcha adminlarga yuborish
             for admin_id in ALL_ADMINS:
                 try:
-                    with open(file_path, 'rb') as f:
-                        await context.bot.send_document(
-                            chat_id=admin_id,
-                            document=f,
-                            caption=f"{oy.capitalize()} oyi - {today}"
-                        )
+                    with open(file_path,'rb') as f:
+                        await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy.capitalize()} oyi - {today}")
                 except Exception as e:
                     print(f"Failed to send document to admin {admin_id}: {e}")
 
         await query.edit_message_text(f"📅 Bugungi to‘lovlar Excel fayl sifatida yuborildi.")
 
 
+    # Oylik tolovlar menusi
     elif query.data == "oylik_menyu":
-        oylar = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
-                 "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"]
+        oylar = ["Yanvar","Fevral","Mart","Aprel","May","Iyun",
+                 "Iyul","Avgust","Sentyabr","Oktyabr","Noyabr","Dekabr"]
         keyboard = [[InlineKeyboardButton(f"🗓 {oy}", callback_data=f"month_{oy.lower()}")] for oy in oylar]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text("Oy bo‘yicha hisobotni tanlang:", reply_markup=reply_markup)
 
+
+    # Oylik tolovlar tugmasi
     elif query.data.startswith("month_"):
         oy_nomi = query.data.replace("month_", "")
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
-        cur.execute("SELECT tolov, tolov_turi FROM tolovlar WHERE lower(oy) = ?", (oy_nomi,))
+        cur.execute("SELECT tolov, tolov_turi FROM tolovlar WHERE lower(oy)=?", (oy_nomi,))
         rows = cur.fetchall()
         con.close()
 
@@ -627,31 +585,38 @@ async def handle_callback(update: Update, context: CallbackContext):
             await query.edit_message_text(f"{oy_nomi.capitalize()} oyi uchun to‘lovlar topilmadi.")
             return
 
-        # Excel fayl yaratish va barcha adminlarga yuborish
-        df = pd.DataFrame(rows, columns=['tolov', 'tolov_turi'])
-        jami_row = pd.DataFrame({'tolov':[df['tolov'].sum()], 'tolov_turi':['Jami to‘lov']})
-        naqd_row = pd.DataFrame({'tolov':[df.loc[df['tolov_turi']=='naqd','tolov'].sum()], 'tolov_turi':['Naqd']})
-        klik_row = pd.DataFrame({'tolov':[df.loc[df['tolov_turi'].isin(['klik','click']),'tolov'].sum()], 'tolov_turi':['Klik']})
-        df_excel = pd.concat([df, jami_row, naqd_row, klik_row], ignore_index=True)
+        df = pd.DataFrame(rows, columns=['tolov','tolov_turi'])
+        jami_sum = df['tolov'].sum()
+        naqd_sum = df.loc[df['tolov_turi']=='naqd','tolov'].sum()
+        klik_sum = df.loc[df['tolov_turi'].isin(['klik','click']),'tolov'].sum()
 
-        os.makedirs("reports", exist_ok=True)
-        file_path = f"reports/hisobot_{oy_nomi}_{today}.xlsx"
-        df_excel.to_excel(file_path, index=False)
+        message = f"📊 {oy_nomi.capitalize()} oyi:\n\n💰 Jami: {jami_sum}\n🖱 Click: {klik_sum}\n💵 Naqd: {naqd_sum}"
 
-        for admin_id in ALL_ADMINS:
-            try:
-                with open(file_path, 'rb') as f:
-                    await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy_nomi.capitalize()} oyi")
-            except Exception as e:
-                print(f"Failed to send document to admin {admin_id}: {e}")
+        if user_id in ORDINARY_ADMIN_IDS:
+            await query.edit_message_text(message)
+        else:
+            os.makedirs("reports", exist_ok=True)
+            jami_row = pd.DataFrame({'tolov':[jami_sum],'tolov_turi':['Jami to‘lov']})
+            naqd_row = pd.DataFrame({'tolov':[naqd_sum],'tolov_turi':['Naqd']})
+            klik_row = pd.DataFrame({'tolov':[klik_sum],'tolov_turi':['Klik']})
+            df_excel = pd.concat([df,jami_row,naqd_row,klik_row], ignore_index=True)
+            file_path = f"reports/hisobot_{oy_nomi}_{today}.xlsx"
+            df_excel.to_excel(file_path, index=False)
 
-        await query.edit_message_text(f"🗓 {oy_nomi.capitalize()} oyi Excel fayl sifatida yuborildi.")
+            for admin_id in ALL_ADMINS:
+                try:
+                    with open(file_path,'rb') as f:
+                        await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy_nomi.capitalize()} oyi")
+                except Exception as e:
+                    print(f"Failed to send document to admin {admin_id}: {e}")
+
+            await query.edit_message_text(f"🗓 {oy_nomi.capitalize()} oyi Excel fayl sifatida yuborildi.")
 
 
 async def send_daily_report(context: CallbackContext):
     today = datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%Y-%m-%d')
     con = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt) = ?", con, params=(today,))
+    df = pd.read_sql_query("SELECT * FROM tolovlar WHERE DATE(vaqt)=?", con, params=(today,))
     con.close()
 
     if df.empty:
@@ -662,23 +627,22 @@ async def send_daily_report(context: CallbackContext):
     os.makedirs("reports", exist_ok=True)
 
     for oy in df['oy'].unique():
-        oy_df = df[df['oy'] == oy].copy()
+        oy_df = df[df['oy']==oy].copy()
         oy_df['tolov_turi'] = oy_df['tolov_turi'].astype(str).str.lower()
+        jami_row = pd.DataFrame({'id':[''],'ismi':['Jami to‘lov'],'tolov':[oy_df['tolov'].sum()],
+                                 'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':['']})
+        naqd_row = pd.DataFrame({'id':[''],'ismi':['Naqd'],'tolov':[oy_df.loc[oy_df['tolov_turi']=='naqd','tolov'].sum()],
+                                 'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':['']})
+        klik_row = pd.DataFrame({'id':[''],'ismi':['Klik'],'tolov':[oy_df.loc[oy_df['tolov_turi'].isin(['klik','click']),'tolov'].sum()],
+                                 'kurs':[''],'oy':[''],'izoh':[''],'admin':[''],'oqituvchi':[''],'vaqt':[''],'tolov_turi':['']})
+        oy_df = pd.concat([oy_df,jami_row,naqd_row,klik_row], ignore_index=True)
 
-        jami_row = pd.DataFrame({'id':[''], 'ismi':['Jami to‘lov'], 'tolov':[oy_df['tolov'].sum()],
-                                 'kurs':[''], 'oy':[''], 'izoh':[''], 'admin':[''], 'oqituvchi':[''], 'vaqt':[''], 'tolov_turi':['']})
-        naqd_row = pd.DataFrame({'id':[''], 'ismi':['Naqd'], 'tolov':[oy_df.loc[oy_df['tolov_turi']=='naqd','tolov'].sum()],
-                                 'kurs':[''], 'oy':[''], 'izoh':[''], 'admin':[''], 'oqituvchi':[''], 'vaqt':[''], 'tolov_turi':['']})
-        klik_row = pd.DataFrame({'id':[''], 'ismi':['Klik'], 'tolov':[oy_df.loc[oy_df['tolov_turi'].isin(['klik','click']),'tolov'].sum()],
-                                 'kurs':[''], 'oy':[''], 'izoh':[''], 'admin':[''], 'oqituvchi':[''], 'vaqt':[''], 'tolov_turi':['']})
-
-        oy_df = pd.concat([oy_df, jami_row, naqd_row, klik_row], ignore_index=True)
         file_path = f"reports/hisobot_{today}_{oy}.xlsx"
         oy_df.to_excel(file_path, index=False)
 
         for admin_id in ALL_ADMINS:
             try:
-                with open(file_path, 'rb') as f:
+                with open(file_path,'rb') as f:
                     await context.bot.send_document(chat_id=admin_id, document=f, caption=f"{oy.capitalize()} oyi - {today}")
             except Exception as e:
                 print(f"Failed to send document to admin {admin_id}: {e}")
@@ -688,7 +652,7 @@ async def run_bot():
     app_bot = Application.builder().token(BOT_TOKEN).build()
     app_bot.add_handler(CommandHandler("start", start))
     app_bot.add_handler(CallbackQueryHandler(handle_callback))
-    app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23, minute=59, tzinfo=pytz.timezone('Asia/Tashkent')))
+    app_bot.job_queue.run_daily(send_daily_report, time=dtime(hour=23,minute=59,tzinfo=pytz.timezone('Asia/Tashkent')))
 
     print("✅ Bot ishga tushdi.")
     await app_bot.run_polling()
